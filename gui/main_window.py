@@ -1172,19 +1172,20 @@ class MainWindow:
         """
         self.root.mainloop()
         
-
         if self.led_simulator:
             self.led_simulator.stop()
         
         if self.osc_handler:
-            self.osc_handler.stop_server()(self)
+            self.osc_handler.stop_server()
+
+    def load_preset_effects(self):
         """
         Load preset effects
         
         Returns:
             Dictionary of preset effects
         """
-
+        
         return {
             "Rainbow Flow": {
                 "color": [1, 3, 4, 2],

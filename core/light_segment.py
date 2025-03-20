@@ -1,29 +1,11 @@
 import numpy as np
-from typing import List, Any, Dict, Tuple
 import time
+from typing import List, Dict, Tuple, Any, Optional
 
 class LightSegment:
-    """
-    Class to manage a LED light segment with properties like color, transparency, movement speed, etc.
-    """
-
     def __init__(self, segment_ID: int, color: List[int], transparency: List[float], 
                  length: List[int], move_speed: float, move_range: List[int], 
                  initial_position: int, is_edge_reflect: bool, dimmer_time: List[int]):
-        """
-        Initialize a LightSegment instance
-        
-        Args:
-            segment_ID: Unique ID for the segment
-            color: List of 4 color IDs for control points
-            transparency: Transparency values for color points (0.0~1.0)
-            length: Length of each segment section (3 values)
-            move_speed: Number of LEDs to move per second (positive: right, negative: left)
-            move_range: Range [left edge, right edge]
-            initial_position: Starting position
-            is_edge_reflect: Whether to reflect at edges
-            dimmer_time: Fade control parameters [start_fade_in, end_fade_in, start_fade_out, end_fade_out, cycle_time]
-        """
         self.segment_ID = segment_ID
         self.color = color
         self.transparency = transparency
@@ -35,7 +17,7 @@ class LightSegment:
         self.is_edge_reflect = is_edge_reflect
         self.dimmer_time = dimmer_time
         self.time = 0
-        self.direction = 1 if move_speed > 0 else -1
+        self.direction = 1 if move_speed >= 0 else -1
         self.rgb_color = self.calculate_rgb()
         self.creation_time = time.time()
         
@@ -45,13 +27,6 @@ class LightSegment:
         self.total_length = sum(length)
 
     def update_param(self, param_name: str, value: Any):
-        """
-        Update a parameter of the LightSegment
-        
-        Args:
-            param_name: Name of the parameter to update
-            value: New value
-        """
         if param_name == 'color':
             setattr(self, param_name, value)
             self.rgb_color = self.calculate_rgb()
@@ -69,12 +44,6 @@ class LightSegment:
             setattr(self, param_name, value)
 
     def update_position(self, fps: int):
-        """
-        Update position for each frame
-        
-        Args:
-            fps: Frames per second
-        """
         dt = 1.0 / fps
         self.time += dt
         
@@ -95,20 +64,14 @@ class LightSegment:
         else:
             if new_position < self.move_range[0]:
                 new_position = self.move_range[1] - ((self.move_range[0] - new_position) % 
-                                                   (self.move_range[1] - self.move_range[0]))
+                                                   (self.move_range[1] - self.move_range[0] + 1))
             elif new_position > self.move_range[1]:
                 new_position = self.move_range[0] + ((new_position - self.move_range[1]) % 
-                                                   (self.move_range[1] - self.move_range[0]))
+                                                   (self.move_range[1] - self.move_range[0] + 1))
                 
         self.current_position = new_position
 
     def calculate_rgb(self) -> List[List[int]]:
-        """
-        Calculate RGB values for the 4 control points from the color map
-        
-        Returns:
-            List of RGB values [r, g, b] for 4 points
-        """
         COLOR_MAP = {
             0: [0, 0, 0],       # Black
             1: [255, 0, 0],     # Red
@@ -126,15 +89,6 @@ class LightSegment:
         return [COLOR_MAP.get(color_id, [0, 0, 0]) for color_id in self.color]
 
     def apply_dimming(self, elapsed_time: float) -> float:
-        """
-        Apply fade in/out effect based on dimmer_time parameters
-        
-        Args:
-            elapsed_time: Time elapsed in seconds
-            
-        Returns:
-            Dimming factor (0.0 - 1.0)
-        """
         if len(self.dimmer_time) != 5:
             return 1.0
             
@@ -143,7 +97,7 @@ class LightSegment:
         if cycle_time <= 0:
             return 1.0
             
-        t = (elapsed_time % cycle_time) * 1000
+        t = (elapsed_time % (cycle_time / 1000)) * 1000
         
         if t < start_fade_in:
             return 0.0
@@ -157,12 +111,6 @@ class LightSegment:
             return 0.0
 
     def get_light_data(self) -> Dict[int, Tuple[List[int], float]]:
-        """
-        Get light data (color and transparency) for each LED affected by this segment
-        
-        Returns:
-            Dictionary with LED position as key, and tuple (RGB color, transparency) as value
-        """
         elapsed_time = time.time() - self.creation_time
         dimming_factor = self.apply_dimming(elapsed_time)
         
@@ -203,7 +151,7 @@ class LightSegment:
                     ]
                     
                     transparency = self.transparency[segment_idx] * (1 - t) + self.transparency[segment_idx + 1] * t
-                    transparency *= dimming_factor
+                    transparency = max(0.0, min(1.0, transparency * dimming_factor))
                     
                     result[led_pos] = (rgb, transparency)
         
