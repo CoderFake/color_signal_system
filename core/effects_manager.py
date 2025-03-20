@@ -6,10 +6,10 @@ from typing import Dict, List, Any, Tuple, Optional
 import time
 import threading
 
-from .light_effect import LightEffect
-from .light_segment import LightSegment
-from ..utils.effect_presets import PRESET_EFFECTS, get_preset_names, get_preset_params
-from ..utils.auto_cycler import AutoEffectCycler
+from core.light_effect import LightEffect
+from core.light_segment import LightSegment
+from utils.effect_presets import PRESET_EFFECTS, get_preset_names, get_preset_params
+from utils.auto_cycler import AutoEffectCycler
 
 class EffectsManager:
     """

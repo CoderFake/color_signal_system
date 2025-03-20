@@ -1,5 +1,5 @@
 from typing import Dict, List, Any, Tuple, Optional
-from .light_segment import LightSegment
+from core.light_segment import LightSegment
 
 class LightEffect:
     def __init__(self, effect_ID: int, led_count: int, fps: int):

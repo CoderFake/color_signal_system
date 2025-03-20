@@ -6,12 +6,12 @@ import threading
 import time
 from typing import Dict, List, Any, Optional
 
-from ..core.light_effect import LightEffect
-from ..core.light_segment import LightSegment
-from ..core.effects_manager import EffectsManager
-from ..utils.effect_presets import get_preset_names, get_preset_params
-from ..utils.color_utils import get_color_by_id, get_color_hex, get_all_color_options, parse_color_option
-from .custom_theme import COLORS, FONTS, METRICS, create_custom_button, create_section_label
+from core.light_effect import LightEffect
+from core.light_segment import LightSegment
+from core.effects_manager import EffectsManager
+from utils.effect_presets import get_preset_names, get_preset_params
+from utils.color_utils import get_color_by_id, get_color_hex, get_all_color_options, parse_color_option
+from gui.theme_manager import COLORS, FONTS, METRICS, create_custom_button, create_section_label
 
 class EffectsIntegration:
     """

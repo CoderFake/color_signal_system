@@ -10,11 +10,11 @@ from typing import Dict, List, Any, Optional, Tuple
 import pygame
 from pythonosc import udp_client
 
-from ..core.light_effect import LightEffect
-from ..core.light_segment import LightSegment
-from .led_simulator import LEDSimulator
-from ..communication.osc_handler import OSCHandler
-from ..communication.device_scanner import DeviceScanner
+from core.light_effect import LightEffect
+from core.light_segment import LightSegment
+from gui.led_simulator import LEDSimulator
+from communication.osc_handler import OSCHandler
+from communication.device_scanner import DeviceScanner
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -35,6 +35,7 @@ class MainWindow:
         self.root.title(title)
         self.root.geometry("1280x720")
         self.root.minsize(1024, 600)
+        self.load_assets()
         
 
         icon_path = os.path.join(os.path.dirname(__file__), "assets", "icon.png")
@@ -74,19 +75,20 @@ class MainWindow:
 
         self.auto_cycle_timer = None
         self.current_preset_index = 0
-    
+
     def load_assets(self):
         """
         Load application assets
         """
         self.icons = {}
-        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+        self._pil_images = []  
+        self._photos = []  
         
+        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
 
         if not os.path.exists(assets_dir):
             os.makedirs(assets_dir)
         
-
         icon_files = {
             "add": "add.png",
             "delete": "delete.png",
@@ -104,23 +106,20 @@ class MainWindow:
         for name, filename in icon_files.items():
             icon_path = os.path.join(assets_dir, filename)
             if os.path.exists(icon_path):
-                img = Image.open(icon_path)
-                img = img.resize((20, 20), Image.LANCZOS)
-                self.icons[name] = ImageTk.PhotoImage(img)
+                try:
+                    ctk_img = ctk.CTkImage(
+                        light_image=Image.open(icon_path),
+                        dark_image=Image.open(icon_path),
+                        size=(20, 20)
+                    )
+                    self.icons[name] = ctk_img
+                except Exception as e:
+                    print(f"Error loading icon {name}: {e}")
+                    self.icons[name] = None
             else:
+                print(f"Icon file not found: {icon_path}")
+                self.icons[name] = None
 
-                img = Image.new('RGBA', (20, 20), color=(100, 100, 100, 255))
-                self.icons[name] = ImageTk.PhotoImage(img)
-    
-    def start_simulator(self):
-        """
-        Start the LED simulator
-        """
-        if self.current_effect_id in self.effects:
-            self.led_simulator = LEDSimulator(self.effects[self.current_effect_id])
-            self.led_simulator.start()
-            self.status_var.set("Simulator running")
-    
     def start_osc_handler(self):
         """
         Start the OSC handler
@@ -1185,7 +1184,7 @@ class MainWindow:
         Returns:
             Dictionary of preset effects
         """
-        
+
         return {
             "Rainbow Flow": {
                 "color": [1, 3, 4, 2],
@@ -1296,17 +1295,14 @@ class MainWindow:
         """
         Create the effect control panel
         """
-
         self.effect_frame = ctk.CTkFrame(self.left_panel)
         self.effect_frame.pack(fill=tk.X, padx=5, pady=5)
         
-
         effect_header = ctk.CTkFrame(self.effect_frame)
         effect_header.pack(fill=tk.X, padx=5, pady=5)
         
         effect_label = ctk.CTkLabel(effect_header, text="Effect Controls", font=("Helvetica", 16, "bold"))
         effect_label.pack(side=tk.LEFT, padx=5)
-        
 
         effect_id_frame = ctk.CTkFrame(self.effect_frame)
         effect_id_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -1326,23 +1322,20 @@ class MainWindow:
         
         add_effect_btn = ctk.CTkButton(
             effect_id_frame, 
-            text="", 
-            image=self.icons.get("add"),
+            text="+", 
             width=30,
             command=self.on_add_effect
         )
         add_effect_btn.pack(side=tk.LEFT, padx=5)
-        
+
         delete_effect_btn = ctk.CTkButton(
             effect_id_frame, 
-            text="", 
-            image=self.icons.get("delete"),
+            text="✕", 
             width=30,
             command=self.on_delete_effect
         )
         delete_effect_btn.pack(side=tk.LEFT, padx=5)
         
-
         led_count_frame = ctk.CTkFrame(self.effect_frame)
         led_count_frame.pack(fill=tk.X, padx=5, pady=5)
         
@@ -1360,7 +1353,6 @@ class MainWindow:
         )
         update_led_count_btn.pack(side=tk.LEFT, padx=5)
         
-
         fps_frame = ctk.CTkFrame(self.effect_frame)
         fps_frame.pack(fill=tk.X, padx=5, pady=5)
         
@@ -1414,23 +1406,20 @@ class MainWindow:
         
         add_segment_btn = ctk.CTkButton(
             segment_id_frame, 
-            text="", 
-            image=self.icons.get("add"),
+            text="+", 
             width=30,
             command=self.on_add_segment
         )
         add_segment_btn.pack(side=tk.LEFT, padx=5)
-        
+
         delete_segment_btn = ctk.CTkButton(
             segment_id_frame, 
-            text="", 
-            image=self.icons.get("delete"),
+            text="✕", 
             width=30,
             command=self.on_delete_segment
         )
         delete_segment_btn.pack(side=tk.LEFT, padx=5)
-        
-
+            
         preset_frame = ctk.CTkFrame(self.segment_frame)
         preset_frame.pack(fill=tk.X, padx=5, pady=5)
         
@@ -1496,14 +1485,14 @@ class MainWindow:
         range_label = ctk.CTkLabel(range_frame, text="Move Range:")
         range_label.pack(side=tk.LEFT, padx=5)
         
-        self.range_min_var = tk.StringVar(value="0")
+        self.range_min_var = tk.IntVar(value="0")
         range_min_entry = ctk.CTkEntry(range_frame, textvariable=self.range_min_var, width=60)
         range_min_entry.pack(side=tk.LEFT, padx=5)
         
         range_to_label = ctk.CTkLabel(range_frame, text="to")
         range_to_label.pack(side=tk.LEFT)
         
-        self.range_max_var = tk.StringVar(value="100")
+        self.range_max_var = tk.IntVar(value="100")
         range_max_entry = ctk.CTkEntry(range_frame, textvariable=self.range_max_var, width=60)
         range_max_entry.pack(side=tk.LEFT, padx=5)
         
@@ -1514,7 +1503,7 @@ class MainWindow:
         speed_label = ctk.CTkLabel(speed_frame, text="Move Speed:")
         speed_label.pack(side=tk.LEFT, padx=5)
         
-        self.speed_var = tk.StringVar(value="10")
+        self.speed_var = tk.DoubleVar(value=10.0)
         speed_scale = ctk.CTkSlider(
             speed_frame,
             from_=-100,
@@ -1601,7 +1590,7 @@ class MainWindow:
 
             color_button = ctk.CTkButton(
                 color_frame,
-                text="",
+                text="🎨",
                 width=30,
                 height=30,
                 fg_color=self.get_color_preview(0),
@@ -1612,7 +1601,7 @@ class MainWindow:
         
 
         self.transparency_frames = []
-        self.transparency_vars = [tk.StringVar(value="0.0") for _ in range(4)]
+        self.transparency_vars = [tk.DoubleVar(value="0.0") for _ in range(4)]
         
         for i in range(4):
             trans_frame = ctk.CTkFrame(self.colors_tab)
@@ -1651,7 +1640,7 @@ class MainWindow:
         """
 
         self.dimmer_labels = ["Fade In Start", "Fade In End", "Fade Out Start", "Fade Out End", "Cycle Time"]
-        self.dimmer_vars = [tk.StringVar(value="0") for _ in range(5)]
+        self.dimmer_vars = [tk.IntVar(value="0") for _ in range(5)]
         
         for i in range(5):
             dimmer_frame = ctk.CTkFrame(self.timing_tab)

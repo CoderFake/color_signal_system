@@ -4,7 +4,7 @@ import math
 from typing import Dict, List, Tuple, Optional
 import threading
 import time
-from ..core.light_effect import LightEffect
+from core.light_effect import LightEffect
 
 class LEDSimulator:
     """

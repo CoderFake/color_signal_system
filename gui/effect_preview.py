@@ -7,9 +7,9 @@ import time
 import threading
 from typing import Dict, List, Any, Tuple, Optional
 
-from ..core.light_effect import LightEffect
-from ..core.light_segment import LightSegment
-from ..utils.effect_presets import get_preset_names, get_preset_params
+from core.light_effect import LightEffect
+from core.light_segment import LightSegment
+from utils.effect_presets import get_preset_names, get_preset_params
 
 class EffectPreviewPanel:
     """

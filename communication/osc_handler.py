@@ -4,7 +4,7 @@ import re
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import BlockingOSCUDPServer, ThreadingOSCUDPServer
 import threading
-from ..core.light_effect import LightEffect
+from core.light_effect import LightEffect
 
 class OSCHandler:
     """
