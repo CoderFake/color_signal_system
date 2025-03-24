@@ -1,139 +1,135 @@
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any
+import numpy as np
 
 
-COLOR_MAP = {
-    0: [0, 0, 0],       # Black
-    1: [255, 0, 0],     # Red
-    2: [0, 255, 0],     # Green
-    3: [0, 0, 255],     # Blue
-    4: [255, 255, 0],   # Yellow
-    5: [255, 0, 255],   # Magenta
-    6: [0, 255, 255],   # Cyan
-    7: [255, 255, 255], # White
-    8: [255, 127, 0],   # Orange
-    9: [127, 0, 255],   # Purple
-    10: [0, 127, 255],  # Light blue
-}
-
-
-COLOR_NAMES = {
-    0: "Black",
-    1: "Red",
-    2: "Green",
-    3: "Blue",
-    4: "Yellow",
-    5: "Magenta",
-    6: "Cyan",
-    7: "White",
-    8: "Orange",
-    9: "Purple",
-    10: "Light Blue",
-}
-
-def get_color_by_id(color_id: int) -> List[int]:
+def interpolate_colors(color1: List[int], color2: List[int], factor: float) -> List[int]:
     """
-    Get RGB color by ID
-    
-    Args:
-        color_id: Color ID (0-10)
-        
-    Returns:
-        RGB color list [r, g, b]
-    """
-    return COLOR_MAP.get(color_id, [0, 0, 0])
-
-def get_color_hex(color_id: int) -> str:
-    """
-    Get hex color by ID
-    
-    Args:
-        color_id: Color ID (0-10)
-        
-    Returns:
-        Hex color string
-    """
-    rgb = get_color_by_id(color_id)
-    return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
-
-def rgb_to_hex(rgb: List[int]) -> str:
-    """
-    Convert RGB list to hex color
-    
-    Args:
-        rgb: RGB color list [r, g, b]
-        
-    Returns:
-        Hex color string
-    """
-    r, g, b = rgb
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-def hex_to_rgb(hex_color: str) -> List[int]:
-    """
-    Convert hex color to RGB list
-    
-    Args:
-        hex_color: Hex color string (with or without #)
-        
-    Returns:
-        RGB color list [r, g, b]
-    """
-    hex_color = hex_color.lstrip('#')
-    return [int(hex_color[i:i+2], 16) for i in range(0, 6, 2)]
-
-def blend_colors(color1: List[int], color2: List[int], ratio: float) -> List[int]:
-    """
-    Blend two colors
+    Interpolate between two RGB colors.
     
     Args:
         color1: First RGB color [r, g, b]
         color2: Second RGB color [r, g, b]
-        ratio: Blend ratio (0.0 = color1, 1.0 = color2)
-        
+        factor: Interpolation factor (0.0 = color1, 1.0 = color2)
+    
     Returns:
-        Blended RGB color
+        Interpolated RGB color [r, g, b]
     """
-    r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
-    g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
-    b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
-    return [r, g, b]
+    r = int(color1[0] + (color2[0] - color1[0]) * factor)
+    g = int(color1[1] + (color2[1] - color1[1]) * factor)
+    b = int(color1[2] + (color2[2] - color1[2]) * factor)
 
-def adjust_brightness(color: List[int], factor: float) -> List[int]:
+
+    return [max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))]
+def apply_transparency(base_color: List[int], overlay_color: List[int], 
+                       transparency: float) -> List[int]:
     """
-    Adjust color brightness
+    Apply a transparent overlay color to a base color.
+    
+    Args:
+        base_color: Base RGB color [r, g, b]
+        overlay_color: Overlay RGB color [r, g, b]
+        transparency: Transparency of the overlay (0.0 = fully transparent, 1.0 = fully opaque)
+    
+    Returns:
+        Resulting RGB color [r, g, b]
+    """
+    return interpolate_colors(base_color, overlay_color, transparency)
+
+
+def blend_colors(colors: List[List[int]], weights: List[float]) -> List[int]:
+    """
+    Blend multiple colors based on weights.
+    
+    Args:
+        colors: List of RGB colors [[r, g, b], ...]
+        weights: List of weights for each color [w1, w2, ...]
+    
+    Returns:
+        Blended RGB color [r, g, b]
+    """
+    if not colors or not weights or len(colors) != len(weights):
+        return [0, 0, 0]
+        
+    total_weight = sum(weights)
+    if total_weight == 0:
+        return [0, 0, 0]
+        
+    normalized_weights = [w / total_weight for w in weights]
+    
+    r = int(sum(c[0] * w for c, w in zip(colors, normalized_weights)))
+    g = int(sum(c[1] * w for c, w in zip(colors, normalized_weights)))
+    b = int(sum(c[2] * w for c, w in zip(colors, normalized_weights)))
+    
+    return [max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))]
+
+
+def gradient_color(colors: List[List[int]], positions: List[float], 
+                  target_position: float) -> List[int]:
+    """
+    Get color at a specific position along a gradient.
+    
+    Args:
+        colors: List of RGB colors [[r, g, b], ...]
+        positions: List of positions for each color [p1, p2, ...]
+        target_position: Position to sample color from
+    
+    Returns:
+        Interpolated RGB color [r, g, b]
+    """
+    if not colors or not positions or len(colors) != len(positions):
+        return [0, 0, 0]
+    
+    if target_position <= positions[0]:
+        return colors[0]
+    if target_position >= positions[-1]:
+        return colors[-1]
+    
+    for i in range(len(positions) - 1):
+        if positions[i] <= target_position <= positions[i + 1]:
+            p1, p2 = positions[i], positions[i + 1]
+            c1, c2 = colors[i], colors[i + 1]
+            
+            factor = 0.0 if (p2 - p1) == 0 else (target_position - p1) / (p2 - p1)
+            return interpolate_colors(c1, c2, factor)
+    
+    return colors[0]
+
+
+def apply_brightness(color: List[int], brightness: float) -> List[int]:
+    """
+    Apply brightness factor to color.
     
     Args:
         color: RGB color [r, g, b]
-        factor: Brightness factor (0.0-1.0)
-        
-    Returns:
-        Adjusted RGB color
-    """
-    r = min(255, int(color[0] * factor))
-    g = min(255, int(color[1] * factor))
-    b = min(255, int(color[2] * factor))
-    return [r, g, b]
-
-def get_all_color_options() -> List[str]:
-    """
-    Get formatted color options for dropdown
+        brightness: Brightness factor (0.0-1.0)
     
     Returns:
-        List of color options in format "ID: Name"
+        Resulting RGB color [r, g, b]
     """
-    return [f"{id}: {name}" for id, name in COLOR_NAMES.items()]
+    r = int(color[0] * brightness)
+    g = int(color[1] * brightness)
+    b = int(color[2] * brightness)
+    return [max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))]
 
-def parse_color_option(option: str) -> int:
+
+def get_color_from_palette(palette: Dict[str, List[List[int]]], 
+                           palette_name: str, color_index: int) -> List[int]:
     """
-    Parse color option to get color ID
+    Get a color from a palette by name and index.
     
     Args:
-        option: Color option string (e.g. "1: Red")
-        
+        palette: Dictionary of color palettes
+        palette_name: Name of the palette (A, B, C, etc.)
+        color_index: Index of the color in the palette (0-5)
+    
     Returns:
-        Color ID
+        RGB color [r, g, b]
     """
-    try:
-        return int(option.split(':')[0])
-    except (ValueError, IndexError):
-        return 0
+    if palette_name not in palette:
+        return [0, 0, 0]
+    
+    palette_colors = palette[palette_name]
+    if color_index < 0 or color_index >= len(palette_colors):
+        return [0, 0, 0]
+    
+    return palette_colors[color_index]
