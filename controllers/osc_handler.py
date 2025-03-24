@@ -1,8 +1,8 @@
 from typing import Dict, List, Any
 import re
 import sys
-from pythonosc import dispatcher, osc_server, udp_client
 import threading
+from pythonosc import dispatcher, osc_server, udp_client
 
 sys.path.append('..')
 from models.light_effect import LightEffect
@@ -26,6 +26,7 @@ class OSCHandler:
         self.light_effects = light_effects
         self.ip = ip
         self.port = port
+        self.color_palettes = DEFAULT_COLOR_PALETTES.copy()
         
 
         self.dispatcher = dispatcher.Dispatcher()
@@ -34,17 +35,23 @@ class OSCHandler:
 
         self.server = None
         self.server_thread = None
+        
+
+        self.client = udp_client.SimpleUDPClient(ip, port)
     
     def setup_dispatcher(self):
         """
         Set up the OSC message dispatcher with the necessary message handlers.
         """
 
-        self.dispatcher.map("/effect/*/object/*/*", self.osc_callback)
+
+        self.dispatcher.map("/effect/*/segment/*/*", self.effect_segment_callback)
         
+
 
         self.dispatcher.map("/palette/*", self.palette_callback)
         
+
 
         self.dispatcher.map("/request/init", self.init_callback)
     
@@ -69,17 +76,16 @@ class OSCHandler:
             self.server.shutdown()
             print("OSC server stopped")
             
-    def osc_callback(self, address, *args):
+    def effect_segment_callback(self, address, *args):
         """
-        Process incoming OSC messages for effect/object updates.
+        Process messages for effect/segment updates.
         
         Args:
             address: OSC address pattern
             *args: OSC message arguments
         """
 
-
-        pattern = r"/effect/(\d+)/object/(\d+)/(.+)"
+        pattern = r"/effect/(\d+)/segment/(\d+)/(.+)"
         match = re.match(pattern, address)
         
         if not match:
@@ -87,25 +93,49 @@ class OSCHandler:
             return
             
         effect_id = int(match.group(1))
-        object_id = int(match.group(2))  # object_id thay vì segment_id theo specs
+        segment_id = int(match.group(2))
         param_name = match.group(3)
         value = args[0]
         
 
-        if effect_id in self.light_effects:
 
-            self.light_effects[effect_id].update_segment_param(object_id, param_name, value)
-            print(f"Updated effect {effect_id}, object {object_id}, param {param_name} = {value}")
+        if param_name == "color" and isinstance(value, list):
+
+            if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
+                self.light_effects[effect_id].update_segment_param(segment_id, "color", value)
+                print(f"Updated effect {effect_id}, segment {segment_id}, colors = {value}")
+        
+
+        elif param_name == "position":
+            if isinstance(value, dict) and "initial_position" in value:
+                if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
+                    self.light_effects[effect_id].update_segment_param(segment_id, "initial_position", value["initial_position"])
+                    self.light_effects[effect_id].update_segment_param(segment_id, "current_position", value["initial_position"])
+                    print(f"Updated effect {effect_id}, segment {segment_id}, initial_position = {value['initial_position']}")
+            
+            if isinstance(value, dict) and "speed" in value:
+                if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
+                    self.light_effects[effect_id].update_segment_param(segment_id, "move_speed", value["speed"])
+                    print(f"Updated effect {effect_id}, segment {segment_id}, move_speed = {value['speed']}")
+                    
+            if isinstance(value, dict) and "range" in value and isinstance(value["range"], list) and len(value["range"]) == 2:
+                if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
+                    self.light_effects[effect_id].update_segment_param(segment_id, "move_range", value["range"])
+                    print(f"Updated effect {effect_id}, segment {segment_id}, move_range = {value['range']}")
+        
+
         else:
-            print(f"Effect {effect_id} not found")
+            if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
+                self.light_effects[effect_id].update_segment_param(segment_id, param_name, value)
+                print(f"Updated effect {effect_id}, segment {segment_id}, {param_name} = {value}")
     
     def palette_callback(self, address, *args):
         """
-        Process incoming OSC messages for palette updates.
+        Process messages for palette updates.
         
         Args:
-            address: OSC address pattern
-            *args: OSC message arguments
+            address: OSC address pattern (e.g. "/palette/A")
+            *args: OSC message arguments (array of color values)
         """
 
         pattern = r"/palette/([A-E])"
@@ -115,90 +145,80 @@ class OSCHandler:
             print(f"Invalid palette address: {address}")
             return
             
-        palette_name = match.group(1)
-        colors = args[0]
+        palette_id = match.group(1)
+        colors_flat = args[0]
         
 
-        if len(colors) % 3 != 0:
-            print(f"Invalid color data length: {len(colors)}")
+        if not isinstance(colors_flat, list) or len(colors_flat) % 3 != 0:
+            print(f"Invalid color data for palette {palette_id}: {colors_flat}")
             return
+        
+
+        colors = []
+        for i in range(0, len(colors_flat), 3):
+            r = max(0, min(255, int(colors_flat[i])))
+            g = max(0, min(255, int(colors_flat[i+1])))
+            b = max(0, min(255, int(colors_flat[i+2])))
+            colors.append([r, g, b])
+        
+
+        self.color_palettes[palette_id] = colors
+        
+
+        for effect in self.light_effects.values():
+            effect.current_palette = palette_id
             
-
-        rgb_colors = []
-        for i in range(0, len(colors), 3):
-            rgb = colors[i:i+3]
-            rgb_colors.append([int(rgb[0]), int(rgb[1]), int(rgb[2])])
-        
-
-        print(f"Updated palette {palette_name} with {len(rgb_colors)} colors")
-        
-
-
-        
+        print(f"Updated palette {palette_id} with {len(colors)} colors")
+    
     def init_callback(self, address, *args):
         """
         Process initialization request messages.
-        Sends back the current state of all effects and segments.
+        Sends the current state of all effects and segments.
         
         Args:
             address: OSC address pattern
             *args: OSC message arguments
         """
+        if address != "/request/init" or args[0] != 1:
+            return
+            
         print("Received initialization request")
         
 
-        client = udp_client.SimpleUDPClient(self.ip, self.port)
-        
-
-        for palette_name, colors in DEFAULT_COLOR_PALETTES.items():
-
+        for palette_id, colors in self.color_palettes.items():
             flat_colors = []
             for color in colors:
                 flat_colors.extend(color)
-            
-            client.send_message(f"/palette/{palette_name}", flat_colors)
+            self.client.send_message(f"/palette/{palette_id}", flat_colors)
         
 
         for effect_id, effect in self.light_effects.items():
             for segment_id, segment in effect.segments.items():
 
-                client.send_message(f"/effect/{effect_id}/object/{segment_id}/color", segment.color)
-                client.send_message(f"/effect/{effect_id}/object/{segment_id}/transparency", segment.transparency)
-                client.send_message(f"/effect/{effect_id}/object/{segment_id}/length", segment.length)
-                client.send_message(f"/effect/{effect_id}/object/{segment_id}/move_speed", segment.move_speed)
-                client.send_message(f"/effect/{effect_id}/object/{segment_id}/move_range", segment.move_range)
-                client.send_message(f"/effect/{effect_id}/object/{segment_id}/initial_position", segment.initial_position)
-                client.send_message(f"/effect/{effect_id}/object/{segment_id}/is_edge_reflect", int(segment.is_edge_reflect))
-                client.send_message(f"/effect/{effect_id}/object/{segment_id}/dimmer_time", segment.dimmer_time)
+                self.client.send_message(
+                    f"/effect/{effect_id}/segment/{segment_id}/color", 
+                    {
+                        "colors": segment.color,
+                        "speed": segment.move_speed,
+                        "gradient": 0  # Default to no gradient
+                    }
+                )
                 
 
-                if hasattr(segment, 'gradient_enabled'):
-                    client.send_message(f"/effect/{effect_id}/object/{segment_id}/gradient", int(segment.gradient_enabled))
-                
-                if hasattr(segment, 'gradient_colors'):
-                    client.send_message(f"/effect/{effect_id}/object/{segment_id}/gradient_colors", segment.gradient_colors)
-                
-                if hasattr(segment, 'interval'):
-                    client.send_message(f"/effect/{effect_id}/object/{segment_id}/interval", segment.interval)
+                self.client.send_message(
+                    f"/effect/{effect_id}/segment/{segment_id}/position",
+                    {
+                        "initial_position": segment.initial_position,
+                        "speed": segment.move_speed,
+                        "range": segment.move_range,
+                        "interval": 10  # Default interval
+                    }
+                )
                 
 
-                if hasattr(segment, 'span_width'):
-                    client.send_message(f"/effect/{effect_id}/object/{segment_id}/span", segment.span_width)
-                
-                if hasattr(segment, 'span_range'):
-                    client.send_message(f"/effect/{effect_id}/object/{segment_id}/span/range", segment.span_range)
-                
-                if hasattr(segment, 'span_speed'):
-                    client.send_message(f"/effect/{effect_id}/object/{segment_id}/span/speed", segment.span_speed)
-                
-                if hasattr(segment, 'span_interval'):
-                    client.send_message(f"/effect/{effect_id}/object/{segment_id}/span/interval", segment.span_interval)
-                
-                if hasattr(segment, 'fade_enabled'):
-                    client.send_message(f"/effect/{effect_id}/object/{segment_id}/span/fade", int(segment.fade_enabled))
-                
-                if hasattr(segment, 'span_gradient_enabled'):
-                    client.send_message(f"/effect/{effect_id}/object/{segment_id}/span/gradient_colors", 
-                                       [int(segment.span_gradient_enabled)] + segment.span_gradient_colors)
+                self.client.send_message(
+                    f"/effect/{effect_id}/segment/{segment_id}/transparency", 
+                    segment.transparency
+                )
                 
         print("Sent initialization data")

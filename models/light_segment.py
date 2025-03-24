@@ -1,8 +1,9 @@
-from typing import List, Any, Union
+from typing import List, Any, Dict
 import numpy as np
 import sys
+import math
 sys.path.append('..')
-from utils.color_utils import interpolate_colors
+from config import DEFAULT_COLOR_PALETTES
 
 class LightSegment:
     """
@@ -40,22 +41,6 @@ class LightSegment:
         self.time = 0.0
         self.rgb_color = self.calculate_rgb()
         self.total_length = sum(self.length)
-        
-
-        self.interval = 10
-        
-
-        self.gradient_enabled = False
-        self.gradient_colors = [-1, -1]  
-        
-
-        self.span_width = 100
-        self.span_range = [50, 150]
-        self.span_speed = 100
-        self.span_interval = 10
-        self.fade_enabled = False
-        self.span_gradient_enabled = False
-        self.span_gradient_colors = [-1, -1, -1, -1, -1, -1]  
         
     def update_param(self, param_name: str, value: Any):
         """
@@ -95,44 +80,38 @@ class LightSegment:
 
         if self.is_edge_reflect:
             if self.current_position < self.move_range[0]:
+
                 self.current_position = 2 * self.move_range[0] - self.current_position
                 self.move_speed *= -1
             elif self.current_position > self.move_range[1]:
+
                 self.current_position = 2 * self.move_range[1] - self.current_position
                 self.move_speed *= -1
         else:
+
             if self.current_position < self.move_range[0]:
                 self.current_position = self.move_range[1] - (self.move_range[0] - self.current_position)
             elif self.current_position > self.move_range[1]:
                 self.current_position = self.move_range[0] + (self.current_position - self.move_range[1])
     
-    def calculate_rgb(self) -> List[List[int]]:
+    def calculate_rgb(self, palette_name: str = "A") -> List[List[int]]:
         """
-        Calculate RGB color values from the color indices.
-        In a real implementation, this would look up colors from a palette.
+        Calculate RGB color values from the color indices using the specified palette.
+        
+        Args:
+            palette_name: Name of the color palette to use (A-E)
         
         Returns:
             List of RGB color values [[r0, g0, b0], ..., [r3, g3, b3]]
         """
-
-
-        color_map = {
-            0: [0, 0, 0],        # Black
-            1: [255, 0, 0],      # Red
-            2: [0, 255, 0],      # Green
-            3: [0, 0, 255],      # Blue
-            4: [255, 255, 0],    # Yellow
-            5: [0, 255, 255],    # Cyan
-            6: [255, 0, 255],    # Magenta
-            7: [255, 255, 255]   # White
-        }
+        palette = DEFAULT_COLOR_PALETTES.get(palette_name, DEFAULT_COLOR_PALETTES["A"])
         
         rgb_values = []
         for color_idx in self.color:
-            if color_idx >= 0 and color_idx in color_map: 
-                rgb_values.append(color_map[color_idx])
+            if color_idx >= 0 and color_idx < len(palette):
+                rgb_values.append(palette[color_idx])
             else:
-                rgb_values.append([0, 0, 0])
+                rgb_values.append([0, 0, 0])  
                 
         return rgb_values
     
@@ -159,53 +138,44 @@ class LightSegment:
         if current_time <= fade_in_start:
             return 0.0
         elif current_time <= fade_in_end:
-            return (current_time - fade_in_start) / (fade_in_end - fade_in_start)
+            return (current_time - fade_in_start) / max(1, fade_in_end - fade_in_start)
         elif current_time <= fade_out_start:
             return 1.0
         elif current_time <= fade_out_end:
-            return 1.0 - (current_time - fade_out_start) / (fade_out_end - fade_out_start)
+            return 1.0 - (current_time - fade_out_start) / max(1, fade_out_end - fade_out_start)
         else:
             return 0.0
     
-    def get_light_data(self) -> dict:
+    def get_light_data(self, palette_name: str = "A") -> dict:
         """
         Get the light data (colors, positions, transparency) for this segment.
         
+        Args:
+            palette_name: Name of the color palette to use for RGB calculations
+            
         Returns:
             Dictionary containing the light data for the LED strip
         """
         brightness = self.apply_dimming()
-        segment_start = int(self.current_position - self.total_length / 2)
         
 
+        segment_start = int(self.current_position - self.total_length / 2)
         positions = [
-            segment_start,
-            segment_start + self.length[0],
-            segment_start + self.length[0] + self.length[1],
-            segment_start + self.total_length
+            segment_start,                          
+            segment_start + self.length[0],           
+            segment_start + self.length[0] + self.length[1],  
+            segment_start + self.total_length        
         ]
         
 
-        colors = self.rgb_color
-        if self.gradient_enabled and hasattr(self, 'gradient_colors') and len(self.gradient_colors) >= 2:
-            if self.gradient_colors[0] >= 0 and self.gradient_colors[1] >= 0:
-                pass  
+        colors = self.calculate_rgb(palette_name)
 
         light_data = {
             'segment_id': self.segment_ID,
             'brightness': brightness,
             'positions': positions,
             'colors': colors,
-            'transparency': self.transparency,
-            'gradient_enabled': getattr(self, 'gradient_enabled', False),
-            'gradient_colors': getattr(self, 'gradient_colors', [-1, -1]),
-            'span_width': getattr(self, 'span_width', 100),
-            'span_range': getattr(self, 'span_range', [50, 150]),
-            'span_speed': getattr(self, 'span_speed', 100),
-            'span_interval': getattr(self, 'span_interval', 10),
-            'fade_enabled': getattr(self, 'fade_enabled', False),
-            'span_gradient_enabled': getattr(self, 'span_gradient_enabled', False),
-            'span_gradient_colors': getattr(self, 'span_gradient_colors', [-1, -1, -1, -1, -1, -1])
+            'transparency': self.transparency
         }
         
         return light_data

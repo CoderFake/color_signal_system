@@ -4,6 +4,7 @@ import os
 from typing import Dict, List, Any
 
 
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 
@@ -31,29 +32,17 @@ def create_default_segments(effect: LightEffect, count: int = 3):
 
         segment = LightSegment(
             segment_ID=i,
-            color=[i % 7, (i + 1) % 7, (i + 2) % 7, (i + 3) % 7],
+            color=[i % 6, (i + 1) % 6, (i + 2) % 6, (i + 3) % 6], 
             transparency=DEFAULT_TRANSPARENCY,
             length=DEFAULT_LENGTH,
-            move_speed=DEFAULT_MOVE_SPEED * (1 if i % 2 == 0 else -1),
+            move_speed=DEFAULT_MOVE_SPEED * (1 if i % 2 == 0 else -1),  
             move_range=DEFAULT_MOVE_RANGE,
-            initial_position=DEFAULT_INITIAL_POSITION + i * 20,
+            initial_position=DEFAULT_INITIAL_POSITION + i * 30, 
             is_edge_reflect=DEFAULT_IS_EDGE_REFLECT,
             dimmer_time=DEFAULT_DIMMER_TIME
         )
         
 
-        segment.gradient_enabled = False
-        segment.gradient_colors = [0, 1]
-        
-
-        segment.span_width = 100
-        segment.span_range = [50, 150]
-        segment.span_speed = 100
-        segment.span_interval = 10
-        segment.fade_enabled = False
-        segment.span_gradient_enabled = False
-        segment.span_gradient_colors = [0, 1, 2, 3, 4, 5] 
-        
         effect.add_segment(i, segment)
 
 def main():

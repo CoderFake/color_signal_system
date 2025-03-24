@@ -3,8 +3,6 @@ import numpy as np
 import sys
 sys.path.append('..')
 from models.light_segment import LightSegment
-from utils.color_utils import apply_transparency, blend_colors, apply_brightness
-
 
 class LightEffect:
     """
@@ -26,6 +24,7 @@ class LightEffect:
         self.led_count = led_count
         self.fps = fps
         self.time_step = 1.0 / fps
+        self.current_palette = "A"
         
     def add_segment(self, segment_ID: int, segment: LightSegment):
         """
@@ -74,17 +73,17 @@ class LightEffect:
         Returns:
             List of RGB color values for each LED
         """
-
+        # Initialize all LEDs to black
         led_colors = [[0, 0, 0] for _ in range(self.led_count)]
         
-
+        # Keep track of transparency for proper blending
         led_transparency = [1.0 for _ in range(self.led_count)]
         
-
+        # Process each segment
         for segment in self.segments.values():
-            segment_data = segment.get_light_data()
+            segment_data = segment.get_light_data(self.current_palette)
             
-
+            # Skip if brightness is zero
             if segment_data['brightness'] <= 0:
                 continue
                 
@@ -93,16 +92,13 @@ class LightEffect:
             segment_transparency = segment_data['transparency']
             brightness = segment_data['brightness']
             
-
+            # Ensure position bounds are valid
             start_pos = max(0, int(positions[0]))
             end_pos = min(self.led_count - 1, int(positions[3]))
             
-
+            # Process each LED affected by this segment
             for led_idx in range(start_pos, end_pos + 1):
-
-                relative_pos = (led_idx - positions[0]) / (positions[3] - positions[0])
-                
-
+                # Determine which section of the segment this LED is in
                 if led_idx <= positions[1]:  # Left edge
                     section_pos = (led_idx - positions[0]) / max(1, positions[1] - positions[0])
                     led_color = self._interpolate_color(colors[0], colors[1], section_pos)
@@ -118,18 +114,17 @@ class LightEffect:
                     led_color = self._interpolate_color(colors[2], colors[3], section_pos)
                     transparency = segment_transparency[2] * (1 - section_pos) + segment_transparency[3] * section_pos
                 
-
-                led_color = apply_brightness(led_color, brightness)
+                # Apply segment brightness
+                led_color = self._apply_brightness(led_color, brightness)
                 
-
+                # Blend with existing LED color based on transparency
                 opacity = (1.0 - led_transparency[led_idx]) * transparency
                 if opacity > 0:
-
-                    led_colors[led_idx] = apply_transparency(
+                    led_colors[led_idx] = self._apply_transparency(
                         led_colors[led_idx], led_color, opacity
                     )
                     
-
+                    # Update remaining transparency
                     led_transparency[led_idx] *= (1.0 - transparency)
         
         return led_colors
@@ -149,4 +144,35 @@ class LightEffect:
         r = int(color1[0] + (color2[0] - color1[0]) * factor)
         g = int(color1[1] + (color2[1] - color1[1]) * factor)
         b = int(color1[2] + (color2[2] - color1[2]) * factor)
+        return [max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))]
+    
+    def _apply_transparency(self, base_color: List[int], overlay_color: List[int], 
+                          transparency: float) -> List[int]:
+        """
+        Apply a transparent overlay color to a base color.
+        
+        Args:
+            base_color: Base color [r, g, b]
+            overlay_color: Overlay color [r, g, b]
+            transparency: Transparency factor (0.0-1.0)
+        
+        Returns:
+            Resulting color [r, g, b]
+        """
+        return self._interpolate_color(base_color, overlay_color, transparency)
+    
+    def _apply_brightness(self, color: List[int], brightness: float) -> List[int]:
+        """
+        Apply brightness to a color.
+        
+        Args:
+            color: Color [r, g, b]
+            brightness: Brightness factor (0.0-1.0)
+        
+        Returns:
+            Adjusted color [r, g, b]
+        """
+        r = int(color[0] * brightness)
+        g = int(color[1] * brightness)
+        b = int(color[2] * brightness)
         return [max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))]

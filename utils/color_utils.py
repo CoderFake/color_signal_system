@@ -1,6 +1,4 @@
 from typing import List, Tuple, Dict, Any
-import numpy as np
-
 
 def interpolate_colors(color1: List[int], color2: List[int], factor: float) -> List[int]:
     """
@@ -20,6 +18,7 @@ def interpolate_colors(color1: List[int], color2: List[int], factor: float) -> L
 
 
     return [max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))]
+
 def apply_transparency(base_color: List[int], overlay_color: List[int], 
                        transparency: float) -> List[int]:
     """
@@ -34,7 +33,6 @@ def apply_transparency(base_color: List[int], overlay_color: List[int],
         Resulting RGB color [r, g, b]
     """
     return interpolate_colors(base_color, overlay_color, transparency)
-
 
 def blend_colors(colors: List[List[int]], weights: List[float]) -> List[int]:
     """
@@ -62,39 +60,6 @@ def blend_colors(colors: List[List[int]], weights: List[float]) -> List[int]:
     
     return [max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))]
 
-
-def gradient_color(colors: List[List[int]], positions: List[float], 
-                  target_position: float) -> List[int]:
-    """
-    Get color at a specific position along a gradient.
-    
-    Args:
-        colors: List of RGB colors [[r, g, b], ...]
-        positions: List of positions for each color [p1, p2, ...]
-        target_position: Position to sample color from
-    
-    Returns:
-        Interpolated RGB color [r, g, b]
-    """
-    if not colors or not positions or len(colors) != len(positions):
-        return [0, 0, 0]
-    
-    if target_position <= positions[0]:
-        return colors[0]
-    if target_position >= positions[-1]:
-        return colors[-1]
-    
-    for i in range(len(positions) - 1):
-        if positions[i] <= target_position <= positions[i + 1]:
-            p1, p2 = positions[i], positions[i + 1]
-            c1, c2 = colors[i], colors[i + 1]
-            
-            factor = 0.0 if (p2 - p1) == 0 else (target_position - p1) / (p2 - p1)
-            return interpolate_colors(c1, c2, factor)
-    
-    return colors[0]
-
-
 def apply_brightness(color: List[int], brightness: float) -> List[int]:
     """
     Apply brightness factor to color.
@@ -110,7 +75,6 @@ def apply_brightness(color: List[int], brightness: float) -> List[int]:
     g = int(color[1] * brightness)
     b = int(color[2] * brightness)
     return [max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))]
-
 
 def get_color_from_palette(palette: Dict[str, List[List[int]]], 
                            palette_name: str, color_index: int) -> List[int]:
