@@ -1,8 +1,6 @@
 {
-    "defaults":
-    {
-        "colours":
-        {
+    "defaults": {
+        "colours": {
             "normal_bg": "#404040",
             "hovered_bg": "#505050",
             "disabled_bg": "#252525",
@@ -24,8 +22,7 @@
             "filled_bar": "#4080C0",
             "unfilled_bar": "#505050"
         },
-        "misc":
-        {
+        "misc": {
             "shape": "rounded_rectangle",
             "border_width": "1",
             "shadow_width": "2",
@@ -38,10 +35,8 @@
             "button_pressed_offset": "1,1"
         }
     },
-    "button":
-    {
-        "colours":
-        {
+    "button": {
+        "colours": {
             "normal_bg": "#3D6D98",
             "hovered_bg": "#4E7DAA",
             "disabled_bg": "#252525",
@@ -58,8 +53,7 @@
             "selected_border": "#6E9DCA",
             "active_border": "#6E9DCA"
         },
-        "misc":
-        {
+        "misc": {
             "shape": "rounded_rectangle",
             "border_width": "1",
             "shadow_width": "2",
@@ -67,34 +61,8 @@
             "border_radius": "3"
         }
     },
-    "drop_down_menu":
-    {
-        "colours":
-        {
-            "normal_bg": "#303030",
-            "hovered_bg": "#404040",
-            "disabled_bg": "#252525",
-            "selected_bg": "#4090C0",
-            "normal_text": "#E0E0E0",
-            "hovered_text": "#FFFFFF",
-            "selected_text": "#FFFFFF",
-            "disabled_text": "#808080",
-            "normal_border": "#505050",
-            "hovered_border": "#707070",
-            "disabled_border": "#404040",
-            "selected_border": "#8090A0"
-        },
-        "misc":
-        {
-            "border_width": "1",
-            "shadow_width": "2",
-            "expand_direction": "down"
-        }
-    },
-    "horizontal_slider":
-    {
-        "colours":
-        {
+    "horizontal_slider": {
+        "colours": {
             "normal_bg": "#303030",
             "hovered_bg": "#404040",
             "disabled_bg": "#252525",
@@ -113,8 +81,7 @@
             "handle_hover": "#A0A0B0",
             "handle_press": "#C0C0D0"
         },
-        "misc":
-        {
+        "misc": {
             "shape": "rounded_rectangle",
             "border_width": "1",
             "shadow_width": "1",
@@ -123,60 +90,31 @@
             "moving_state_height": "18"
         }
     },
-    "window":
-    {
-        "colours":
-        {
-            "normal_bg": "#353535",
-            "hovered_bg": "#353535",
-            "disabled_bg": "#353535",
-            "selected_bg": "#353535",
-            "normal_text": "#E0E0E0",
-            "hovered_text": "#FFFFFF",
-            "selected_text": "#FFFFFF",
-            "disabled_text": "#808080",
-            "normal_border": "#505050",
-            "hovered_border": "#707070",
-            "disabled_border": "#404040",
-            "selected_border": "#8090A0",
-            "title_bar": "#304050",
-            "title_bar_text": "#E0E0E0",
-            "title_bar_text_hover": "#FFFFFF",
-            "title_bar_border": "#606060",
-            "title_bar_shadow": "#000000",
-            "title_bar_active": "#3070A0",
-            "title_bar_text_active": "#FFFFFF",
-            "title_bar_border_active": "#8090A0"
-        },
-        "misc":
-        {
-            "shape": "rounded_rectangle",
-            "border_width": "1",
-            "shadow_width": "15",
-            "title_bar_height": "28",
-            "border_radius": "5"
-        }
-    },
-    "label":
-    {
-        "colours":
-        {
+    "label": {
+        "colours": {
             "normal_text": "#E0E0E0",
             "text_shadow": "#303030"
         },
-        "font":
-        {
+        "font": {
             "name": "roboto",
             "size": "14",
             "bold": "0",
-            "italic": "0",
-            "regular_path": "fonts/Roboto-Regular.ttf"
+            "italic": "0"
         },
-        "misc":
-        {
+        "misc": {
             "text_shadow": "0",
             "text_shadow_size": "1",
             "text_shadow_offset": "0,0"
+        }
+    },
+    "panel": {
+        "colours": {
+            "dark_bg": "#353535",
+            "normal_border": "#4A4A4A"
+        },
+        "misc": {
+            "border_width": "1",
+            "shadow_width": "0"
         }
     }
 }
