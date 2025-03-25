@@ -82,15 +82,14 @@ class LightSegment:
                 self.current_position = self.move_range[1] - (self.move_range[0] - self.current_position)
             elif self.current_position > self.move_range[1]:
                 self.current_position = self.move_range[0] + (self.current_position - self.move_range[1])
-    
+
     def calculate_rgb(self, palette_name: str = "A") -> List[List[int]]:
-        """Calculate RGB color values from the color indices"""
         from config import DEFAULT_COLOR_PALETTES
         
         palette = DEFAULT_COLOR_PALETTES.get(palette_name, DEFAULT_COLOR_PALETTES["A"])
         
         rgb_values = []
-        for color_idx in self.color:
+        for i, color_idx in enumerate(self.color):
             try:
                 if isinstance(color_idx, int) and 0 <= color_idx < len(palette):
                     rgb_values.append(palette[color_idx])
@@ -98,24 +97,28 @@ class LightSegment:
                     rgb_values.append([255, 0, 0]) 
             except Exception as e:
                 print(f"Error getting color {color_idx} from palette: {e}")
-                rgb_values.append([255, 0, 0])  
+                rgb_values.append([255, 0, 0])
+        
+        while len(rgb_values) < 4:
+            if rgb_values:
+                rgb_values.append(rgb_values[-1])
+            else:
+                rgb_values.append([255, 0, 0])
         
         return rgb_values
 
     def apply_dimming(self) -> float:
         """
         Calculate the brightness factor based on dimmer_time settings.
-        
+
         Returns:
             Brightness factor (0.0-1.0)
         """
-
         if not self.fade or not self.dimmer_time or len(self.dimmer_time) < 5 or self.dimmer_time[4] == 0:
             return 1.0 
             
         cycle_time = self.dimmer_time[4]
         current_time = int((self.time * 1000) % cycle_time)
-        
         fade_in_start = self.dimmer_time[0]
         fade_in_end = self.dimmer_time[1]
         fade_out_start = self.dimmer_time[2]
@@ -123,12 +126,18 @@ class LightSegment:
 
         if current_time < fade_in_start:
             return 0.0
+
         elif current_time < fade_in_end:
-            return (current_time - fade_in_start) / max(1, fade_in_end - fade_in_start)
+            progress = (current_time - fade_in_start) / max(1, fade_in_end - fade_in_start)
+            return progress * progress
+
         elif current_time < fade_out_start:
             return 1.0
+
         elif current_time < fade_out_end:
-            return 1.0 - (current_time - fade_out_start) / max(1, fade_out_end - fade_out_start)
+            progress = (current_time - fade_out_start) / max(1, fade_out_end - fade_out_start)
+            return 1.0 - (progress * progress)
+
         else:
             return 0.0
 

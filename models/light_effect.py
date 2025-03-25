@@ -68,80 +68,80 @@ class LightEffect:
     def get_led_output(self) -> List[List[int]]:
         """
         Calculate the final color values for all LEDs based on all active segments.
+        Xử lý tổng hợp segment_data (xem xét độ mờ)
         """
 
         led_colors = [[0, 0, 0] for _ in range(self.led_count)]
+        led_transparency = [1.0 for _ in range(self.led_count)]
+
+        sorted_segments = sorted(self.segments.items(), key=lambda x: x[0])
         
-        for segment_id, segment in self.segments.items():
+        for segment_id, segment in sorted_segments:
             segment_data = segment.get_light_data(self.current_palette)
-            
 
             if segment_data['brightness'] <= 0:
                 continue
                 
             positions = segment_data['positions']
             colors = segment_data['colors']
+            transparency = segment_data['transparency']
             brightness = segment_data['brightness']
             
             start_pos = max(0, int(positions[0]))
             end_pos = min(self.led_count - 1, int(positions[3]))
             
-
             for led_idx in range(start_pos, end_pos + 1):
+                if led_idx < 0 or led_idx >= self.led_count:
+                    continue
 
-                rel_pos = 0.0
-                led_color = [0, 0, 0]
-                
                 if led_idx <= positions[1]:
+
                     rel_pos = (led_idx - positions[0]) / max(1, positions[1] - positions[0])
-
-                    led_color = [
-                        int(colors[0][0] + (colors[1][0] - colors[0][0]) * rel_pos),
-                        int(colors[0][1] + (colors[1][1] - colors[0][1]) * rel_pos),
-                        int(colors[0][2] + (colors[1][2] - colors[0][2]) * rel_pos)
-                    ]
-                
+                    trans_idx = 0
+                    color1 = colors[0]
+                    color2 = colors[1]
+                    
                 elif led_idx <= positions[2]:
+
                     rel_pos = (led_idx - positions[1]) / max(1, positions[2] - positions[1])
-
-                    led_color = [
-                        int(colors[1][0] + (colors[2][0] - colors[1][0]) * rel_pos),
-                        int(colors[1][1] + (colors[2][1] - colors[1][1]) * rel_pos),
-                        int(colors[1][2] + (colors[2][2] - colors[1][2]) * rel_pos)
-                    ]
-                
+                    trans_idx = 1
+                    color1 = colors[1]
+                    color2 = colors[2]
+                    
                 else:
+
                     rel_pos = (led_idx - positions[2]) / max(1, positions[3] - positions[2])
+                    trans_idx = 2
+                    color1 = colors[2]
+                    color2 = colors[3]
 
-                    led_color = [
-                        int(colors[2][0] + (colors[3][0] - colors[2][0]) * rel_pos),
-                        int(colors[2][1] + (colors[3][1] - colors[2][1]) * rel_pos),
-                        int(colors[2][2] + (colors[3][2] - colors[2][2]) * rel_pos)
-                    ]
+                from utils.color_utils import interpolate_colors
+                led_color = interpolate_colors(color1, color2, rel_pos)
                 
-
-                led_color = [
-                    int(led_color[0] * brightness),
-                    int(led_color[1] * brightness),
-                    int(led_color[2] * brightness)
-                ]
+                from utils.color_utils import apply_brightness
+                led_color = apply_brightness(led_color, brightness)
                 
-
-                led_color = [
-                    max(0, min(255, c)) for c in led_color
-                ]
+                current_transparency = transparency[trans_idx]
                 
-
-
                 if led_colors[led_idx] == [0, 0, 0]:
+
                     led_colors[led_idx] = led_color
+                    led_transparency[led_idx] = current_transparency
                 else:
 
-                    led_colors[led_idx] = [
-                        (led_colors[led_idx][0] + led_color[0]) // 2,
-                        (led_colors[led_idx][1] + led_color[1]) // 2,
-                        (led_colors[led_idx][2] + led_color[2]) // 2
-                    ]
+                    from utils.color_utils import blend_colors, apply_transparency
+
+                    weight_current = led_transparency[led_idx]
+                    weight_new = current_transparency * (1.0 - led_transparency[led_idx])
+
+                    led_colors[led_idx] = blend_colors(
+                        [led_colors[led_idx], led_color],
+                        [weight_current, weight_new]
+                    )
+
+                    led_transparency[led_idx] = max(0.0, min(1.0, 
+                        led_transparency[led_idx] + current_transparency * (1.0 - led_transparency[led_idx])
+                    ))
         
         return led_colors
 
