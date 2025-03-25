@@ -12,7 +12,7 @@ from models.light_effect import LightEffect
 from config import (
     UI_WIDTH, UI_HEIGHT, UI_BACKGROUND_COLOR, UI_TEXT_COLOR, 
     UI_ACCENT_COLOR, UI_BUTTON_COLOR, DEFAULT_COLOR_PALETTES,
-    DEFAULT_FPS, DEFAULT_LED_COUNT
+    DEFAULT_FPS, DEFAULT_LED_COUNT, UI_WIDTH, UI_HEIGHT
 )
 
 class LEDSimulator:
@@ -31,11 +31,15 @@ class LEDSimulator:
             height: Height of the window in pixels
         """
         pygame.init()
-        self.width = width
-        self.height = height
-        self.screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+        self.width = max(width, UI_WIDTH)  
+        self.height = max(height, UI_HEIGHT) 
+        self.screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)
         pygame.display.set_caption("LED Tape Light Simulator")
-        
+
+        self.is_resizing = False
+        self.resize_timer = 0
+        self.segment_positions = {}
+        self.ignore_position_events = False
 
         try:
             icon = pygame.Surface((32, 32))
@@ -52,18 +56,15 @@ class LEDSimulator:
             self.manager = pygame_gui.UIManager((width, height))
             
         self.clock = pygame.time.Clock()
-        
 
         self.light_effects = light_effects
         self.active_effect_id = min(light_effects.keys()) if light_effects else 1
         self.active_segment_id = 1
         
-
         self.led_size = 8
         self.led_spacing = 1
         self.led_display_height = 40
         
-
         self.is_playing = True
         self.fps = DEFAULT_FPS
         
@@ -72,35 +73,37 @@ class LEDSimulator:
         self.pan_offset = 0
         self.dragging = False
         self.last_mouse_pos = (0, 0)
-        
 
         self.current_palette = "A"
         self.palettes = DEFAULT_COLOR_PALETTES.copy()
-        
 
         self.top_panel_height = 60
         self.control_panel_width = 300
         self.control_panel_expanded = True
         self.top_panel_expanded = True
         
-
         self.last_activity_time = time.time()
         self.auto_hide_timeout = 60.0
-        
 
         self.calculate_layout()
         self.setup_ui()
         self.pan_to_segments()
+
+        for effect_id, effect in self.light_effects.items():
+            for segment_id, segment in effect.segments.items():
+                key = f"{effect_id}_{segment_id}"
+                self.segment_positions[key] = segment.current_position
         
     def calculate_layout(self):
         """
         Calculate the positions and sizes of UI elements based on window size.
         """
+        self.width = max(self.width, UI_WIDTH)
+        self.height = max(self.height, UI_HEIGHT)
 
         top_panel_height = self.top_panel_height if self.top_panel_expanded else 20
         control_panel_width = self.control_panel_width if self.control_panel_expanded else 20
         
-
         self.top_panel_rect = pygame.Rect(0, 0, self.width, top_panel_height)
         self.control_panel_rect = pygame.Rect(
             self.width - control_panel_width, top_panel_height,
@@ -111,10 +114,25 @@ class LEDSimulator:
             self.width - control_panel_width, self.height - top_panel_height
         )
         
-
         self.led_display_center_y = self.led_display_rect.y + self.led_display_rect.height // 2
         self.effective_led_width = (self.led_size + self.led_spacing) * self.zoom_level
     
+    def save_segment_position(self):
+        if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
+            segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
+            key = f"{self.active_effect_id}_{self.active_segment_id}"
+            self.segment_positions[key] = segment.current_position
+
+    def restore_segment_position(self):
+        if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
+            segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
+            key = f"{self.active_effect_id}_{self.active_segment_id}"
+            
+            if key in self.segment_positions:
+                segment.current_position = self.segment_positions[key]
+                if hasattr(self, 'position_slider'):
+                    self.position_slider.set_current_value(segment.current_position)
+
     def setup_ui(self):
         """
         Set up the user interface elements.
@@ -182,9 +200,9 @@ class LEDSimulator:
 
             self.effect_buttons = []
             for i, effect_id in enumerate(sorted(self.light_effects.keys())):
-                x_pos = 450 + i * 35
+                x_pos = 450 + i * 40
                 button = pygame_gui.elements.UIButton(
-                    relative_rect=pygame.Rect(x_pos, 10, 30, 30),
+                    relative_rect=pygame.Rect(x_pos, 10, 40, 30),
                     text=str(effect_id),
                     manager=self.manager,
                     tool_tip_text=f"Select Effect {effect_id}"
@@ -199,28 +217,28 @@ class LEDSimulator:
             )
             
             self.zoom_in_button = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(800, 10, 30, 30),
+                relative_rect=pygame.Rect(800, 10, 40, 30),
                 text='+',
                 manager=self.manager,
                 tool_tip_text="Zoom In"
             )
             
             self.zoom_out_button = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(840, 10, 30, 30),
+                relative_rect=pygame.Rect(840, 10, 40, 30),
                 text='-',
                 manager=self.manager,
                 tool_tip_text="Zoom Out"
             )
             
             self.zoom_reset_button = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(880, 10, 80, 30),
+                relative_rect=pygame.Rect(880, 10, 150, 30),
                 text='Reset View',
                 manager=self.manager,
                 tool_tip_text="Reset Zoom and Pan"
             )
 
             self.center_view_button = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(970, 10, 100, 30),
+                relative_rect=pygame.Rect(1030, 10, 150, 30),
                 text='Center View',
                 manager=self.manager,
                 tool_tip_text="Center View on Segments"
@@ -327,18 +345,23 @@ class LEDSimulator:
                 )
                 
                 panel_y += 25
-                
+
+                position_value = segment.current_position
+                key = f"{self.active_effect_id}_{self.active_segment_id}"
+                if key in self.segment_positions:
+                    position_value = self.segment_positions[key]
+                    segment.current_position = position_value
+                    
                 self.position_slider = pygame_gui.elements.UIHorizontalSlider(
-                relative_rect=pygame.Rect(self.control_panel_rect.x + 10, panel_y, 
+                    relative_rect=pygame.Rect(self.control_panel_rect.x + 10, panel_y, 
                                         self.control_panel_rect.width - 20, 20),
-                start_value=min(max(segment.current_position, segment.move_range[0]), segment.move_range[1]),
-                value_range=(segment.move_range[0], max(segment.move_range[0] + 1, segment.move_range[1])),
-                manager=self.manager
-            )
+                    start_value=position_value,
+                    value_range=(segment.move_range[0], max(segment.move_range[0] + 1, segment.move_range[1])),
+                    manager=self.manager
+                )
                 
                 panel_y += 30
                 
-
                 self.range_label = pygame_gui.elements.UILabel(
                     relative_rect=pygame.Rect(self.control_panel_rect.x + 10, panel_y, 100, 20),
                     text='Move Range:',
@@ -394,7 +417,7 @@ class LEDSimulator:
                 
 
                 self.color_buttons = []
-                button_size = 40
+                button_size = 50
                 button_spacing = 10
                 color_per_row = 4
                 
@@ -520,7 +543,7 @@ class LEDSimulator:
                     
                     self.dimmer_sliders.append((slider, i, label_element))
                     panel_y += 30
-    
+
     def toggle_panel(self, panel_name):
         """
         Toggle the expansion state of a panel.
@@ -528,13 +551,33 @@ class LEDSimulator:
         Args:
             panel_name: Name of the panel to toggle ('top' or 'right')
         """
+        key = f"{self.active_effect_id}_{self.active_segment_id}"
+        if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
+            segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
+            self.segment_positions[key] = segment.current_position
+            stored_position = segment.current_position
+            print(f"Stored position before toggle: {stored_position}")
+        
+        self.ignore_position_events = True
+        
         if panel_name == 'top':
             self.top_panel_expanded = not self.top_panel_expanded
         elif panel_name == 'right':
             self.control_panel_expanded = not self.control_panel_expanded
-            
+        
         self.calculate_layout()
         self.setup_ui()
+        
+        if key in self.segment_positions and self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
+            segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
+            position_value = self.segment_positions[key]
+            segment.current_position = position_value
+            
+            if hasattr(self, 'position_slider'):
+                self.position_slider.set_current_value(position_value)
+                print(f"Restored position after toggle: {position_value}")
+        
+        self.ignore_position_events = False
 
     def pan_to_segments(self):
         """Pan the view to center on the active segments"""
@@ -577,11 +620,15 @@ class LEDSimulator:
                 
 
             elif event.type == pygame.VIDEORESIZE:
-                self.width, self.height = event.size
+                self.is_resizing = True
+                self.resize_timer = time.time()
+                
+                new_width = max(event.size[0], UI_WIDTH) 
+                new_height = max(event.size[1], UI_HEIGHT)
+                self.width, self.height = new_width, new_height
                 self.screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)
-                self.manager.set_window_resolution((self.width, self.height))
                 self.calculate_layout()
-                self.setup_ui()
+                self.last_activity_time = time.time()
                 
 
             elif event.type == pygame.MOUSEWHEEL:
@@ -608,137 +655,143 @@ class LEDSimulator:
                     self.pan_offset += dx
                     self.last_mouse_pos = mouse_pos
                     self.last_activity_time = time.time()
-            
 
             elif event.type == pygame.USEREVENT:
-                if event.user_type == pygame_gui.UI_BUTTON_PRESSED:
-                    if event.ui_element == self.top_panel_toggle:
-                        self.toggle_panel('top')
+                if hasattr(event, 'user_type'):
+                    if event.user_type == pygame_gui.UI_BUTTON_PRESSED:
+                        if event.ui_element == self.top_panel_toggle:
+                            self.toggle_panel('top')
 
-                    elif event.ui_element == self.right_panel_toggle:
-                        self.toggle_panel('right')
+                        elif event.ui_element == self.right_panel_toggle:
+                            self.toggle_panel('right')
 
-                    elif hasattr(self, 'play_button') and event.ui_element == self.play_button:
-                        self.is_playing = not self.is_playing
-                        self.play_button.set_text('Pause' if self.is_playing else 'Play')
+                        elif hasattr(self, 'play_button') and event.ui_element == self.play_button:
+                            self.is_playing = not self.is_playing
+                            self.play_button.set_text('Pause' if self.is_playing else 'Play')
 
-                    elif hasattr(self, 'zoom_in_button') and event.ui_element == self.zoom_in_button:
-                        self.zoom_level = min(5.0, self.zoom_level * 1.2)
+                        elif hasattr(self, 'zoom_in_button') and event.ui_element == self.zoom_in_button:
+                            self.zoom_level = min(5.0, self.zoom_level * 1.2)
+                            
+                        elif hasattr(self, 'zoom_out_button') and event.ui_element == self.zoom_out_button:
+                            self.zoom_level = max(0.1, self.zoom_level / 1.2)
+
+                        elif hasattr(self, 'zoom_reset_button') and event.ui_element == self.zoom_reset_button:
+                            self.zoom_level = 1.0
+                            self.pan_offset = 0
+
+                        elif hasattr(self, 'center_view_button') and event.ui_element == self.center_view_button:
+                            self.pan_to_segments()
+
+                        elif hasattr(self, 'reflect_toggle') and event.ui_element == self.reflect_toggle:
+                            if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
+                                segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
+                                segment.is_edge_reflect = not segment.is_edge_reflect
+                                self.reflect_toggle.set_text('ON' if segment.is_edge_reflect else 'OFF')
                         
-                    elif hasattr(self, 'zoom_out_button') and event.ui_element == self.zoom_out_button:
-                        self.zoom_level = max(0.1, self.zoom_level / 1.2)
-
-                    elif hasattr(self, 'zoom_reset_button') and event.ui_element == self.zoom_reset_button:
-                        self.zoom_level = 1.0
-                        self.pan_offset = 0
-
-                    elif hasattr(self, 'center_view_button') and event.ui_element == self.center_view_button:
-                        self.pan_to_segments()
-
-                    elif hasattr(self, 'reflect_toggle') and event.ui_element == self.reflect_toggle:
-                        if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
-                            segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
-                            segment.is_edge_reflect = not segment.is_edge_reflect
-                            self.reflect_toggle.set_text('ON' if segment.is_edge_reflect else 'OFF')
-                    
-                    elif hasattr(self, 'gradient_toggle') and event.ui_element == self.gradient_toggle:
-                        if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
-                            segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
-                            segment.gradient = not segment.gradient
-                            if segment.gradient and segment.gradient_colors[0] == 0:
-                                segment.gradient_colors[0] = 1
-                            self.gradient_toggle.set_text('ON' if segment.gradient else 'OFF')
-                            self.setup_ui()
-
-                    elif hasattr(self, 'fade_toggle') and event.ui_element == self.fade_toggle:
-                        if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
-                            segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
-                            segment.fade = not segment.fade
-                            self.fade_toggle.set_text('ON' if segment.fade else 'OFF')
-
-                    if hasattr(self, 'effect_buttons'):
-                        for button, effect_id in self.effect_buttons:
-                            if event.ui_element == button:
-                                self.active_effect_id = effect_id
-                                
-
-                                if self.active_effect_id in self.light_effects:
-                                    segments = sorted(self.light_effects[self.active_effect_id].segments.keys())
-                                    if segments:
-                                        self.active_segment_id = segments[0]
-                                        
+                        elif hasattr(self, 'gradient_toggle') and event.ui_element == self.gradient_toggle:
+                            if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
+                                segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
+                                segment.gradient = not segment.gradient
+                                if segment.gradient and segment.gradient_colors[0] == 0:
+                                    segment.gradient_colors[0] = 1
+                                self.gradient_toggle.set_text('ON' if segment.gradient else 'OFF')
                                 self.setup_ui()
-                                break
-                    
 
-                    if hasattr(self, 'segment_buttons'):
-                        for button, segment_id in self.segment_buttons:
-                            if event.ui_element == button:
-                                self.active_segment_id = segment_id
-                                self.setup_ui()
-                                break
-                                
+                        elif hasattr(self, 'fade_toggle') and event.ui_element == self.fade_toggle:
+                            if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
+                                segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
+                                segment.fade = not segment.fade
+                                self.fade_toggle.set_text('ON' if segment.fade else 'OFF')
 
-                    if hasattr(self, 'palette_buttons'):
-                        for button, palette_id in self.palette_buttons:
-                            if event.ui_element == button:
-                                self.current_palette = palette_id
+                        if hasattr(self, 'effect_buttons'):
+                            for button, effect_id in self.effect_buttons:
+                                if event.ui_element == button:
+                                    self.active_effect_id = effect_id
+                                    
 
-                                for effect in self.light_effects.values():
-                                    effect.current_palette = self.current_palette
-                                self.setup_ui()
-                                break
-                                
-
-                    if hasattr(self, 'color_buttons'):
-                        for button, color_index in self.color_buttons:
-                            if event.ui_element == button:
-                                self.cycle_color(color_index)
-                                break
-
-                    if hasattr(self, 'gradient_color_buttons'):
-                        for button, color_position in self.gradient_color_buttons:
-                            if event.ui_element == button:
-                                if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
-                                    segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
-                                    current_idx = segment.gradient_colors[color_position]
-                                    next_idx = (current_idx + 1) % len(self.palettes[self.current_palette]) if current_idx >= 0 else 0
-                                    gradient_colors = segment.gradient_colors.copy()
-                                    gradient_colors[color_position] = next_idx
-                                    segment.update_param('gradient_colors', gradient_colors)
+                                    if self.active_effect_id in self.light_effects:
+                                        segments = sorted(self.light_effects[self.active_effect_id].segments.keys())
+                                        if segments:
+                                            self.active_segment_id = segments[0]
+                                            
                                     self.setup_ui()
                                     break
-                                
-                elif event.user_type == pygame_gui.UI_HORIZONTAL_SLIDER_MOVED:
-                    if hasattr(self, 'fps_slider') and event.ui_element == self.fps_slider:
-                        self.fps = int(event.value)
-                        if hasattr(self, 'fps_value_label'):
-                            self.fps_value_label.set_text(str(self.fps))
-                        for effect in self.light_effects.values():
-                            effect.fps = self.fps
-                    
-
-                    if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
-                        segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
-                        
-                        if hasattr(self, 'speed_slider') and event.ui_element == self.speed_slider:
-                            segment.move_speed = event.value
-                        elif hasattr(self, 'position_slider') and event.ui_element == self.position_slider:
-                            segment.current_position = event.value
-                        elif hasattr(self, 'range_min_slider') and event.ui_element == self.range_min_slider:
-                            segment.move_range = [event.value, segment.move_range[1]]
-                        elif hasattr(self, 'range_max_slider') and event.ui_element == self.range_max_slider:
-                            segment.move_range = [segment.move_range[0], event.value]
                         
 
-                        if hasattr(self, 'dimmer_sliders'):
-                            for slider, dimmer_index, _ in self.dimmer_sliders:
-                                if event.ui_element == slider:
-                                    dimmer_time = segment.dimmer_time.copy()
-                                    dimmer_time[dimmer_index] = int(event.value)
-                                    segment.dimmer_time = dimmer_time
+                        if hasattr(self, 'segment_buttons'):
+                            for button, segment_id in self.segment_buttons:
+                                if event.ui_element == button:
+                                    self.active_segment_id = segment_id
+                                    self.setup_ui()
                                     break
-            
+                                    
+
+                        if hasattr(self, 'palette_buttons'):
+                            for button, palette_id in self.palette_buttons:
+                                if event.ui_element == button:
+                                    self.current_palette = palette_id
+
+                                    for effect in self.light_effects.values():
+                                        effect.current_palette = self.current_palette
+                                    self.setup_ui()
+                                    break
+                                    
+
+                        if hasattr(self, 'color_buttons'):
+                            for button, color_index in self.color_buttons:
+                                if event.ui_element == button:
+                                    self.cycle_color(color_index)
+                                    break
+
+                        if hasattr(self, 'gradient_color_buttons'):
+                            for button, color_position in self.gradient_color_buttons:
+                                if event.ui_element == button:
+                                    if self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
+                                        segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
+                                        current_idx = segment.gradient_colors[color_position]
+                                        next_idx = (current_idx + 1) % len(self.palettes[self.current_palette]) if current_idx >= 0 else 0
+                                        gradient_colors = segment.gradient_colors.copy()
+                                        gradient_colors[color_position] = next_idx
+                                        segment.update_param('gradient_colors', gradient_colors)
+                                        self.setup_ui()
+                                        break
+                                    
+                    elif event.user_type == pygame_gui.UI_HORIZONTAL_SLIDER_MOVED:
+                        if hasattr(self, 'fps_slider') and event.ui_element == self.fps_slider:
+                            self.fps = int(event.value)
+                            if hasattr(self, 'fps_value_label'):
+                                self.fps_value_label.set_text(str(self.fps))
+                            for effect in self.light_effects.values():
+                                effect.fps = self.fps
+                        
+                        if not self.ignore_position_events and self.active_effect_id in self.light_effects and self.active_segment_id in self.light_effects[self.active_effect_id].segments:
+                            segment = self.light_effects[self.active_effect_id].segments[self.active_segment_id]
+                            
+                            if hasattr(self, 'speed_slider') and event.ui_element == self.speed_slider:
+                                segment.move_speed = event.value
+                            elif hasattr(self, 'position_slider') and event.ui_element == self.position_slider:
+                                old_position = segment.current_position
+                                segment.current_position = event.value
+                                key = f"{self.active_effect_id}_{self.active_segment_id}"
+                                self.segment_positions[key] = event.value
+                                print(f"Position slider updated: {old_position} -> {event.value}")
+                            elif hasattr(self, 'range_min_slider') and event.ui_element == self.range_min_slider:
+                                segment.move_range = [event.value, segment.move_range[1]]
+                            elif hasattr(self, 'range_max_slider') and event.ui_element == self.range_max_slider:
+                                segment.move_range = [segment.move_range[0], event.value]
+                            
+                            if hasattr(self, 'dimmer_sliders'):
+                                for slider, dimmer_index, _ in self.dimmer_sliders:
+                                    if event.ui_element == slider:
+                                        dimmer_time = segment.dimmer_time.copy()
+                                        dimmer_time[dimmer_index] = int(event.value)
+                                        segment.dimmer_time = dimmer_time
+                                        break
+
+            if self.is_resizing and time.time() - self.resize_timer > 0.2:
+                self.is_resizing = False
+                self.manager.set_window_resolution((self.width, self.height))
+                self.setup_ui()
 
             self.manager.process_events(event)
         
@@ -776,6 +829,13 @@ class LEDSimulator:
         """
         Render the UI and LED visualization.
         """
+        if self.is_resizing:
+            self.screen.fill(UI_BACKGROUND_COLOR)
+            font = pygame.font.SysFont('Arial', 24)
+            text = font.render("Resizing...", True, (220, 220, 220))
+            text_rect = text.get_rect(center=(self.width//2, self.height//2))
+            self.screen.blit(text, text_rect)
+            return
 
         self.screen.fill(UI_BACKGROUND_COLOR)
 
