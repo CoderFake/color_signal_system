@@ -75,7 +75,7 @@ class OSCHandler:
         if self.server:
             self.server.shutdown()
             print("OSC server stopped")
-            
+
     def effect_segment_callback(self, address, *args):
         """
         Process messages for effect/segment updates.
@@ -84,7 +84,6 @@ class OSCHandler:
             address: OSC address pattern
             *args: OSC message arguments
         """
-
         pattern = r"/effect/(\d+)/segment/(\d+)/(.+)"
         match = re.match(pattern, address)
         
@@ -97,38 +96,81 @@ class OSCHandler:
         param_name = match.group(3)
         value = args[0]
         
-
-
-        if param_name == "color" and isinstance(value, list):
-
-            if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
-                self.light_effects[effect_id].update_segment_param(segment_id, "color", value)
-                print(f"Updated effect {effect_id}, segment {segment_id}, colors = {value}")
+        if effect_id not in self.light_effects or segment_id not in self.light_effects[effect_id].segments:
+            print(f"Effect {effect_id} or segment {segment_id} not found")
+            return
         
+        segment = self.light_effects[effect_id].segments[segment_id]
+
+        if param_name == "color":
+            if isinstance(value, dict):
+                if "colors" in value:
+                    segment.update_param("color", value["colors"])
+                    print(f"Updated colors: {value['colors']}")
+                    
+                if "speed" in value:
+                    segment.update_param("move_speed", value["speed"])
+                    print(f"Updated speed: {value['speed']}")
+                    
+                if "gradient" in value:
+                    segment.update_param("gradient", value["gradient"] == 1)
+                    print(f"Updated gradient: {value['gradient']}")
+                    
+            elif isinstance(value, list) and len(value) >= 1:
+                segment.update_param("color", value)
+                print(f"Updated colors directly: {value}")
 
         elif param_name == "position":
-            if isinstance(value, dict) and "initial_position" in value:
-                if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
-                    self.light_effects[effect_id].update_segment_param(segment_id, "initial_position", value["initial_position"])
-                    self.light_effects[effect_id].update_segment_param(segment_id, "current_position", value["initial_position"])
-                    print(f"Updated effect {effect_id}, segment {segment_id}, initial_position = {value['initial_position']}")
-            
-            if isinstance(value, dict) and "speed" in value:
-                if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
-                    self.light_effects[effect_id].update_segment_param(segment_id, "move_speed", value["speed"])
-                    print(f"Updated effect {effect_id}, segment {segment_id}, move_speed = {value['speed']}")
+            if isinstance(value, dict):
+                if "initial_position" in value:
+                    segment.update_param("initial_position", value["initial_position"])
+                    segment.update_param("current_position", value["initial_position"])
+                    print(f"Updated position: {value['initial_position']}")
                     
-            if isinstance(value, dict) and "range" in value and isinstance(value["range"], list) and len(value["range"]) == 2:
-                if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
-                    self.light_effects[effect_id].update_segment_param(segment_id, "move_range", value["range"])
-                    print(f"Updated effect {effect_id}, segment {segment_id}, move_range = {value['range']}")
+                if "speed" in value:
+                    segment.update_param("move_speed", value["speed"])
+                    print(f"Updated speed: {value['speed']}")
+                    
+                if "range" in value and isinstance(value["range"], list) and len(value["range"]) == 2:
+                    segment.update_param("move_range", value["range"])
+                    print(f"Updated range: {value['range']}")
+                    
+                if "interval" in value:
+                    segment.update_param("position_interval", value["interval"])
+                    print(f"Updated interval: {value['interval']}")
         
-
+        elif param_name == "span":
+            if isinstance(value, dict):
+                if "span" in value:
+                    new_length = [value["span"]//3, value["span"]//3, value["span"]//3]
+                    segment.update_param("length", new_length)
+                    print(f"Updated span length: {new_length}")
+                    
+                if "range" in value and isinstance(value["range"], list) and len(value["range"]) == 2:
+                    segment.update_param("span_range", value["range"])
+                    print(f"Updated span range: {value['range']}")
+                    
+                if "speed" in value:
+                    segment.update_param("span_speed", value["speed"])
+                    print(f"Updated span speed: {value['speed']}")
+                    
+                if "interval" in value:
+                    segment.update_param("span_interval", value["interval"])
+                    print(f"Updated span interval: {value['interval']}")
+                    
+                if "gradient_colors" in value and isinstance(value["gradient_colors"], list):
+                    segment.update_param("gradient_colors", value["gradient_colors"])
+                    print(f"Updated gradient colors: {value['gradient_colors']}")
+                    
+                if "fade" in value:
+                    segment.update_param("fade", value["fade"] == 1)
+                    print(f"Updated fade: {value['fade']}")
+        
         else:
-            if effect_id in self.light_effects and segment_id in self.light_effects[effect_id].segments:
-                self.light_effects[effect_id].update_segment_param(segment_id, param_name, value)
-                print(f"Updated effect {effect_id}, segment {segment_id}, {param_name} = {value}")
-    
+            segment.update_param(param_name, value)
+            print(f"Updated {param_name}: {value}")            
+
+
     def palette_callback(self, address, *args):
         """
         Process messages for palette updates.

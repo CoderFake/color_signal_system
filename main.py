@@ -23,25 +23,25 @@ from ui.led_simulator import LEDSimulator
 def create_default_segments(effect: LightEffect, count: int = 3):
     """
     Create default light segments for an effect.
-    
-    Args:
-        effect: LightEffect to add segments to
-        count: Number of segments to create
     """
-    for i in range(1, count + 1):
+    center_position = effect.led_count // 2 
 
+    for i in range(1, count + 1):
         segment = LightSegment(
             segment_ID=i,
             color=[i % 6, (i + 1) % 6, (i + 2) % 6, (i + 3) % 6], 
             transparency=DEFAULT_TRANSPARENCY,
             length=DEFAULT_LENGTH,
             move_speed=DEFAULT_MOVE_SPEED * (1 if i % 2 == 0 else -1),  
-            move_range=DEFAULT_MOVE_RANGE,
-            initial_position=DEFAULT_INITIAL_POSITION + i * 30, 
+            move_range=[0, effect.led_count - 1], 
+            initial_position=center_position - 30 + i * 30,
             is_edge_reflect=DEFAULT_IS_EDGE_REFLECT,
             dimmer_time=DEFAULT_DIMMER_TIME
         )
         
+        segment.gradient = False
+        segment.fade = False
+        segment.gradient_colors = [0, -1, -1]
 
         effect.add_segment(i, segment)
 

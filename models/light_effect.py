@@ -64,71 +64,87 @@ class LightEffect:
         """
         for segment in self.segments.values():
             segment.update_position(self.fps)
-    
+
     def get_led_output(self) -> List[List[int]]:
         """
         Calculate the final color values for all LEDs based on all active segments.
-        Takes into account transparency and overlapping segments.
-        
-        Returns:
-            List of RGB color values for each LED
         """
-        # Initialize all LEDs to black
+
         led_colors = [[0, 0, 0] for _ in range(self.led_count)]
         
-        # Keep track of transparency for proper blending
-        led_transparency = [1.0 for _ in range(self.led_count)]
-        
-        # Process each segment
-        for segment in self.segments.values():
+        for segment_id, segment in self.segments.items():
             segment_data = segment.get_light_data(self.current_palette)
             
-            # Skip if brightness is zero
+
             if segment_data['brightness'] <= 0:
                 continue
                 
             positions = segment_data['positions']
             colors = segment_data['colors']
-            segment_transparency = segment_data['transparency']
             brightness = segment_data['brightness']
             
-            # Ensure position bounds are valid
             start_pos = max(0, int(positions[0]))
             end_pos = min(self.led_count - 1, int(positions[3]))
             
-            # Process each LED affected by this segment
+
             for led_idx in range(start_pos, end_pos + 1):
-                # Determine which section of the segment this LED is in
-                if led_idx <= positions[1]:  # Left edge
-                    section_pos = (led_idx - positions[0]) / max(1, positions[1] - positions[0])
-                    led_color = self._interpolate_color(colors[0], colors[1], section_pos)
-                    transparency = segment_transparency[0] * (1 - section_pos) + segment_transparency[1] * section_pos
+
+                rel_pos = 0.0
+                led_color = [0, 0, 0]
                 
-                elif led_idx <= positions[2]:  # Middle
-                    section_pos = (led_idx - positions[1]) / max(1, positions[2] - positions[1])
-                    led_color = self._interpolate_color(colors[1], colors[2], section_pos)
-                    transparency = segment_transparency[1] * (1 - section_pos) + segment_transparency[2] * section_pos
+                if led_idx <= positions[1]:
+                    rel_pos = (led_idx - positions[0]) / max(1, positions[1] - positions[0])
+
+                    led_color = [
+                        int(colors[0][0] + (colors[1][0] - colors[0][0]) * rel_pos),
+                        int(colors[0][1] + (colors[1][1] - colors[0][1]) * rel_pos),
+                        int(colors[0][2] + (colors[1][2] - colors[0][2]) * rel_pos)
+                    ]
                 
-                else:  # Right edge
-                    section_pos = (led_idx - positions[2]) / max(1, positions[3] - positions[2])
-                    led_color = self._interpolate_color(colors[2], colors[3], section_pos)
-                    transparency = segment_transparency[2] * (1 - section_pos) + segment_transparency[3] * section_pos
+                elif led_idx <= positions[2]:
+                    rel_pos = (led_idx - positions[1]) / max(1, positions[2] - positions[1])
+
+                    led_color = [
+                        int(colors[1][0] + (colors[2][0] - colors[1][0]) * rel_pos),
+                        int(colors[1][1] + (colors[2][1] - colors[1][1]) * rel_pos),
+                        int(colors[1][2] + (colors[2][2] - colors[1][2]) * rel_pos)
+                    ]
                 
-                # Apply segment brightness
-                led_color = self._apply_brightness(led_color, brightness)
+                else:
+                    rel_pos = (led_idx - positions[2]) / max(1, positions[3] - positions[2])
+
+                    led_color = [
+                        int(colors[2][0] + (colors[3][0] - colors[2][0]) * rel_pos),
+                        int(colors[2][1] + (colors[3][1] - colors[2][1]) * rel_pos),
+                        int(colors[2][2] + (colors[3][2] - colors[2][2]) * rel_pos)
+                    ]
                 
-                # Blend with existing LED color based on transparency
-                opacity = (1.0 - led_transparency[led_idx]) * transparency
-                if opacity > 0:
-                    led_colors[led_idx] = self._apply_transparency(
-                        led_colors[led_idx], led_color, opacity
-                    )
-                    
-                    # Update remaining transparency
-                    led_transparency[led_idx] *= (1.0 - transparency)
+
+                led_color = [
+                    int(led_color[0] * brightness),
+                    int(led_color[1] * brightness),
+                    int(led_color[2] * brightness)
+                ]
+                
+
+                led_color = [
+                    max(0, min(255, c)) for c in led_color
+                ]
+                
+
+
+                if led_colors[led_idx] == [0, 0, 0]:
+                    led_colors[led_idx] = led_color
+                else:
+
+                    led_colors[led_idx] = [
+                        (led_colors[led_idx][0] + led_color[0]) // 2,
+                        (led_colors[led_idx][1] + led_color[1]) // 2,
+                        (led_colors[led_idx][2] + led_color[2]) // 2
+                    ]
         
         return led_colors
-    
+
     def _interpolate_color(self, color1: List[int], color2: List[int], factor: float) -> List[int]:
         """
         Interpolate between two colors for gradient effects.

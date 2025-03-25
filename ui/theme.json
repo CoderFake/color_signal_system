@@ -96,7 +96,7 @@
             "text_shadow": "#303030"
         },
         "font": {
-            "name": "roboto",
+            "name": "sans",
             "size": "14",
             "bold": "0",
             "italic": "0"
