@@ -68,31 +68,43 @@ class LightEffect:
     def get_led_output(self) -> List[List[int]]:
         """
         Calculate the final color values for all LEDs based on all active segments.
-        Xử lý tổng hợp segment_data (xem xét độ mờ)
+        Takes into account transparency and overlapping segments.
+        
+        Returns:
+            List of RGB color values for each LED
         """
 
         led_colors = [[0, 0, 0] for _ in range(self.led_count)]
         led_transparency = [1.0 for _ in range(self.led_count)]
 
+
         sorted_segments = sorted(self.segments.items(), key=lambda x: x[0])
         
+
         for segment_id, segment in sorted_segments:
+
             segment_data = segment.get_light_data(self.current_palette)
+
 
             if segment_data['brightness'] <= 0:
                 continue
                 
+
             positions = segment_data['positions']
             colors = segment_data['colors']
             transparency = segment_data['transparency']
             brightness = segment_data['brightness']
             
+
             start_pos = max(0, int(positions[0]))
             end_pos = min(self.led_count - 1, int(positions[3]))
             
+
             for led_idx in range(start_pos, end_pos + 1):
                 if led_idx < 0 or led_idx >= self.led_count:
                     continue
+
+
 
                 if led_idx <= positions[1]:
 
@@ -115,14 +127,18 @@ class LightEffect:
                     color1 = colors[2]
                     color2 = colors[3]
 
+
                 from utils.color_utils import interpolate_colors
                 led_color = interpolate_colors(color1, color2, rel_pos)
                 
+
                 from utils.color_utils import apply_brightness
                 led_color = apply_brightness(led_color, brightness)
                 
+
                 current_transparency = transparency[trans_idx]
                 
+
                 if led_colors[led_idx] == [0, 0, 0]:
 
                     led_colors[led_idx] = led_color
@@ -131,13 +147,16 @@ class LightEffect:
 
                     from utils.color_utils import blend_colors, apply_transparency
 
+
                     weight_current = led_transparency[led_idx]
                     weight_new = current_transparency * (1.0 - led_transparency[led_idx])
+
 
                     led_colors[led_idx] = blend_colors(
                         [led_colors[led_idx], led_color],
                         [weight_current, weight_new]
                     )
+
 
                     led_transparency[led_idx] = max(0.0, min(1.0, 
                         led_transparency[led_idx] + current_transparency * (1.0 - led_transparency[led_idx])

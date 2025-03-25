@@ -31,6 +31,7 @@ def create_default_segments(effect: LightEffect, count: int = 3):
     center_position = effect.led_count // 2 
 
     for i in range(1, count + 1):
+
         segment = LightSegment(
             segment_ID=i,
             color=[i % 6, (i + 1) % 6, (i + 2) % 6, (i + 3) % 6], 

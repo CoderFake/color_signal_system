@@ -90,7 +90,7 @@ class OSCHandler:
         Process messages for effect/segment updates.
         
         Args:
-            address: OSC address pattern
+            address: OSC address pattern (e.g. "/effect/1/segment/2/color")
             *args: OSC message arguments
         """
 
@@ -117,6 +117,7 @@ class OSCHandler:
 
         if param_name == "color":
             if isinstance(value, dict):
+
                 if "colors" in value:
                     segment.update_param("color", value["colors"])
                     print(f"Updated colors: {value['colors']}")
@@ -133,15 +134,17 @@ class OSCHandler:
                     ui_updated = True
                     
             elif isinstance(value, list) and len(value) >= 1:
+
                 segment.update_param("color", value)
                 print(f"Updated colors directly: {value}")
                 ui_updated = True
+
 
         elif param_name == "position":
             if isinstance(value, dict):
                 if "initial_position" in value:
                     segment.update_param("initial_position", value["initial_position"])
-                    segment.update_param("current_position", value["initial_position"])
+                    segment.update_param("current_position", float(value["initial_position"]))
                     print(f"Updated position: {value['initial_position']}")
                     ui_updated = True
                     
@@ -160,9 +163,11 @@ class OSCHandler:
                     print(f"Updated interval: {value['interval']}")
                     ui_updated = True
         
+
         elif param_name == "span":
             if isinstance(value, dict):
                 if "span" in value:
+
                     new_length = [value["span"]//3, value["span"]//3, value["span"]//3]
                     segment.update_param("length", new_length)
                     print(f"Updated span length: {new_length}")
@@ -193,6 +198,7 @@ class OSCHandler:
                     print(f"Updated fade: {value['fade']}")
                     ui_updated = True
         
+
         else:
             segment.update_param(param_name, value)
             print(f"Updated {param_name}: {value}")
@@ -208,8 +214,8 @@ class OSCHandler:
 
                 if hasattr(self.simulator, '_build_ui'):
                     self.simulator._build_ui()
-
             else:
+
                 if hasattr(self.simulator, 'active_effect_id'):
                     self.simulator.active_effect_id = effect_id
                 if hasattr(self.simulator, 'active_segment_id'):
@@ -313,7 +319,7 @@ class OSCHandler:
                         "initial_position": segment.initial_position,
                         "speed": segment.move_speed,
                         "range": segment.move_range,
-                        "interval": 10
+                        "interval": getattr(segment, 'position_interval', 10)
                     }
                 )
                 
@@ -322,9 +328,9 @@ class OSCHandler:
                     f"/effect/{effect_id}/segment/{segment_id}/span",
                     {
                         "span": sum(segment.length),
-                        "range": segment.move_range, 
-                        "speed": segment.move_speed,
-                        "interval": 10,
+                        "range": getattr(segment, 'span_range', segment.move_range), 
+                        "speed": getattr(segment, 'span_speed', segment.move_speed),
+                        "interval": getattr(segment, 'span_interval', 10),
                         "gradient_colors": segment.gradient_colors if hasattr(segment, "gradient_colors") else [0, -1, -1],
                         "fade": 1 if segment.fade else 0
                     }
