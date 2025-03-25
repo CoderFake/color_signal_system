@@ -38,20 +38,20 @@ class OSCHandler:
         
 
         self.client = udp_client.SimpleUDPClient(ip, port)
+        
+
+        self.simulator = None
     
     def setup_dispatcher(self):
         """
         Set up the OSC message dispatcher with the necessary message handlers.
         """
 
-
         self.dispatcher.map("/effect/*/segment/*/*", self.effect_segment_callback)
         
 
-
         self.dispatcher.map("/palette/*", self.palette_callback)
         
-
 
         self.dispatcher.map("/request/init", self.init_callback)
     
@@ -76,6 +76,15 @@ class OSCHandler:
             self.server.shutdown()
             print("OSC server stopped")
 
+    def set_simulator(self, simulator):
+        """
+        Set reference to the simulator for UI updates.
+        
+        Args:
+            simulator: LEDSimulator instance
+        """
+        self.simulator = simulator
+
     def effect_segment_callback(self, address, *args):
         """
         Process messages for effect/segment updates.
@@ -84,6 +93,7 @@ class OSCHandler:
             address: OSC address pattern
             *args: OSC message arguments
         """
+
         pattern = r"/effect/(\d+)/segment/(\d+)/(.+)"
         match = re.match(pattern, address)
         
@@ -96,29 +106,36 @@ class OSCHandler:
         param_name = match.group(3)
         value = args[0]
         
+
         if effect_id not in self.light_effects or segment_id not in self.light_effects[effect_id].segments:
             print(f"Effect {effect_id} or segment {segment_id} not found")
             return
         
         segment = self.light_effects[effect_id].segments[segment_id]
+        ui_updated = False
+
 
         if param_name == "color":
             if isinstance(value, dict):
                 if "colors" in value:
                     segment.update_param("color", value["colors"])
                     print(f"Updated colors: {value['colors']}")
+                    ui_updated = True
                     
                 if "speed" in value:
                     segment.update_param("move_speed", value["speed"])
                     print(f"Updated speed: {value['speed']}")
+                    ui_updated = True
                     
                 if "gradient" in value:
                     segment.update_param("gradient", value["gradient"] == 1)
                     print(f"Updated gradient: {value['gradient']}")
+                    ui_updated = True
                     
             elif isinstance(value, list) and len(value) >= 1:
                 segment.update_param("color", value)
                 print(f"Updated colors directly: {value}")
+                ui_updated = True
 
         elif param_name == "position":
             if isinstance(value, dict):
@@ -126,18 +143,22 @@ class OSCHandler:
                     segment.update_param("initial_position", value["initial_position"])
                     segment.update_param("current_position", value["initial_position"])
                     print(f"Updated position: {value['initial_position']}")
+                    ui_updated = True
                     
                 if "speed" in value:
                     segment.update_param("move_speed", value["speed"])
                     print(f"Updated speed: {value['speed']}")
+                    ui_updated = True
                     
                 if "range" in value and isinstance(value["range"], list) and len(value["range"]) == 2:
                     segment.update_param("move_range", value["range"])
                     print(f"Updated range: {value['range']}")
+                    ui_updated = True
                     
                 if "interval" in value:
                     segment.update_param("position_interval", value["interval"])
                     print(f"Updated interval: {value['interval']}")
+                    ui_updated = True
         
         elif param_name == "span":
             if isinstance(value, dict):
@@ -145,31 +166,56 @@ class OSCHandler:
                     new_length = [value["span"]//3, value["span"]//3, value["span"]//3]
                     segment.update_param("length", new_length)
                     print(f"Updated span length: {new_length}")
+                    ui_updated = True
                     
                 if "range" in value and isinstance(value["range"], list) and len(value["range"]) == 2:
                     segment.update_param("span_range", value["range"])
                     print(f"Updated span range: {value['range']}")
+                    ui_updated = True
                     
                 if "speed" in value:
                     segment.update_param("span_speed", value["speed"])
                     print(f"Updated span speed: {value['speed']}")
+                    ui_updated = True
                     
                 if "interval" in value:
                     segment.update_param("span_interval", value["interval"])
                     print(f"Updated span interval: {value['interval']}")
+                    ui_updated = True
                     
                 if "gradient_colors" in value and isinstance(value["gradient_colors"], list):
                     segment.update_param("gradient_colors", value["gradient_colors"])
                     print(f"Updated gradient colors: {value['gradient_colors']}")
+                    ui_updated = True
                     
                 if "fade" in value:
                     segment.update_param("fade", value["fade"] == 1)
                     print(f"Updated fade: {value['fade']}")
+                    ui_updated = True
         
         else:
             segment.update_param(param_name, value)
-            print(f"Updated {param_name}: {value}")            
+            print(f"Updated {param_name}: {value}")
+            ui_updated = True
+            
 
+        if ui_updated and self.simulator:
+
+            if hasattr(self.simulator, 'set_active_effect'):
+
+                self.simulator.set_active_effect(effect_id)
+                
+
+                if hasattr(self.simulator, '_build_ui'):
+                    self.simulator._build_ui()
+
+            else:
+                if hasattr(self.simulator, 'active_effect_id'):
+                    self.simulator.active_effect_id = effect_id
+                if hasattr(self.simulator, 'active_segment_id'):
+                    self.simulator.active_segment_id = segment_id
+                if hasattr(self.simulator, 'ui_dirty'):
+                    self.simulator.ui_dirty = True
 
     def palette_callback(self, address, *args):
         """
@@ -211,6 +257,20 @@ class OSCHandler:
             effect.current_palette = palette_id
             
         print(f"Updated palette {palette_id} with {len(colors)} colors")
+        
+
+        if self.simulator:
+
+            if hasattr(self.simulator, 'current_palette'):
+                self.simulator.current_palette = palette_id
+            if hasattr(self.simulator, 'palettes'):
+                self.simulator.palettes[palette_id] = colors
+            
+
+            if hasattr(self.simulator, '_build_ui'):
+                self.simulator._build_ui()
+            elif hasattr(self.simulator, 'ui_dirty'):
+                self.simulator.ui_dirty = True
     
     def init_callback(self, address, *args):
         """
@@ -242,7 +302,7 @@ class OSCHandler:
                     {
                         "colors": segment.color,
                         "speed": segment.move_speed,
-                        "gradient": 0  # Default to no gradient
+                        "gradient": 1 if segment.gradient else 0
                     }
                 )
                 
@@ -253,7 +313,20 @@ class OSCHandler:
                         "initial_position": segment.initial_position,
                         "speed": segment.move_speed,
                         "range": segment.move_range,
-                        "interval": 10  # Default interval
+                        "interval": 10
+                    }
+                )
+                
+
+                self.client.send_message(
+                    f"/effect/{effect_id}/segment/{segment_id}/span",
+                    {
+                        "span": sum(segment.length),
+                        "range": segment.move_range, 
+                        "speed": segment.move_speed,
+                        "interval": 10,
+                        "gradient_colors": segment.gradient_colors if hasattr(segment, "gradient_colors") else [0, -1, -1],
+                        "fade": 1 if segment.fade else 0
                     }
                 )
                 
