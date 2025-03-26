@@ -1,13 +1,11 @@
 import sys
 import time
 import os
-from typing import Dict, List, Any
 import argparse
-
+from typing import Dict, List, Any
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
-
 
 from config import (
     DEFAULT_FPS, DEFAULT_LED_COUNT, DEFAULT_OSC_PORT, DEFAULT_OSC_IP,
@@ -31,7 +29,6 @@ def create_default_segments(effect: LightEffect, count: int = 3):
     center_position = effect.led_count // 2 
 
     for i in range(1, count + 1):
-
         segment = LightSegment(
             segment_ID=i,
             color=[i % 6, (i + 1) % 6, (i + 2) % 6, (i + 3) % 6], 
@@ -44,7 +41,6 @@ def create_default_segments(effect: LightEffect, count: int = 3):
             dimmer_time=DEFAULT_DIMMER_TIME
         )
         
-
         segment.gradient = False
         segment.fade = False
         segment.gradient_colors = [0, -1, -1]
@@ -58,50 +54,57 @@ def parse_arguments():
     parser.add_argument('--led-count', type=int, default=DEFAULT_LED_COUNT, help=f'Number of LEDs (default: {DEFAULT_LED_COUNT})')
     parser.add_argument('--osc-ip', type=str, default=DEFAULT_OSC_IP, help=f'OSC IP address (default: {DEFAULT_OSC_IP})')
     parser.add_argument('--osc-port', type=int, default=DEFAULT_OSC_PORT, help=f'OSC port (default: {DEFAULT_OSC_PORT})')
+    parser.add_argument('--no-gui', action='store_true', help='Run without GUI')
+    parser.add_argument('--simulator-only', action='store_true', help='Run only the simulator without OSC')
     return parser.parse_args()
 
 def main():
     """
     Main function to initialize and run the Color Signal Generation System.
     """
-
     args = parse_arguments()
     
     print("Initializing Color Signal Generation System...")
     print(f"FPS: {args.fps}, LED Count: {args.led_count}, OSC: {args.osc_ip}:{args.osc_port}")
     
-
     light_effects: Dict[int, LightEffect] = {}
     
-
     for effect_id in range(1, 9): 
         effect = LightEffect(effect_ID=effect_id, led_count=args.led_count, fps=args.fps)
         create_default_segments(effect, count=3)
         light_effects[effect_id] = effect
     
-
-    osc_handler = OSCHandler(light_effects, ip=args.osc_ip, port=args.osc_port)
-    osc_handler.start_server()
+    if not args.simulator_only:
+        osc_handler = OSCHandler(light_effects, ip=args.osc_ip, port=args.osc_port)
+        osc_handler.start_server()
     
     try:
-
-        print("Starting LED Simulator...")
-        simulator = LEDSimulator(light_effects)
-        
-
-        osc_handler.set_simulator(simulator)
-        
-
-        simulator.run()
+        if not args.no_gui:
+            print("Starting LED Simulator...")
+            simulator = LEDSimulator(light_effects)
+            
+            if not args.simulator_only:
+                osc_handler.set_simulator(simulator)
+            
+            simulator.run()
+        else:
+            print("Running in headless mode (no GUI)...")
+            print("Press Ctrl+C to exit")
+            
+            while True:
+                for effect in light_effects.values():
+                    effect.update_all()
+                time.sleep(1.0/args.fps)
+                
     except KeyboardInterrupt:
         print("\nUser interrupted. Shutting down...")
     except Exception as e:
-        print(f"Error in simulator: {e}")
+        print(f"Error: {e}")
         import traceback
         traceback.print_exc()
     finally:
-
-        osc_handler.stop_server()
+        if not args.simulator_only:
+            osc_handler.stop_server()
         print("System shutdown complete.")
 
 if __name__ == "__main__":

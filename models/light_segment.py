@@ -23,7 +23,6 @@ class LightSegment:
         self.dimmer_time = dimmer_time
         self.time = 0.0
         
-
         self.gradient = False
         self.fade = False
         self.gradient_colors = [0, -1, -1]
@@ -32,20 +31,12 @@ class LightSegment:
         self.total_length = sum(self.length)
 
     def update_param(self, param_name: str, value: Any):
-        """
-        Update a specified parameter with a new value.
-        
-        Args:
-            param_name: Name of the parameter to update
-            value: New value for the parameter
-        """
         if param_name == 'color':
             setattr(self, param_name, value)
             self.rgb_color = self.calculate_rgb()
         else:
             setattr(self, param_name, value)
             
-
         if param_name == 'move_range':
             if self.current_position < self.move_range[0]:
                 self.current_position = self.move_range[0]
@@ -53,31 +44,20 @@ class LightSegment:
                 self.current_position = self.move_range[1]
     
     def update_position(self, fps: int):
-        """
-        Update the position of the segment based on the frame rate and move_speed.
-        
-        Args:
-            fps: Frames per second
-        """
         dt = 1.0 / fps
         self.time += dt
         
-
         delta = self.move_speed * dt
         self.current_position += delta
         
-
         if self.is_edge_reflect:
             if self.current_position < self.move_range[0]:
-
                 self.current_position = 2 * self.move_range[0] - self.current_position
                 self.move_speed *= -1
             elif self.current_position > self.move_range[1]:
-
                 self.current_position = 2 * self.move_range[1] - self.current_position
                 self.move_speed *= -1
         else:
-
             if self.current_position < self.move_range[0]:
                 self.current_position = self.move_range[1] - (self.move_range[0] - self.current_position)
             elif self.current_position > self.move_range[1]:
@@ -108,12 +88,6 @@ class LightSegment:
         return rgb_values
 
     def apply_dimming(self) -> float:
-        """
-        Calculate the brightness factor based on dimmer_time settings.
-
-        Returns:
-            Brightness factor (0.0-1.0)
-        """
         if not self.fade or not self.dimmer_time or len(self.dimmer_time) < 5 or self.dimmer_time[4] == 0:
             return 1.0 
             
@@ -126,26 +100,20 @@ class LightSegment:
 
         if current_time < fade_in_start:
             return 0.0
-
         elif current_time < fade_in_end:
             progress = (current_time - fade_in_start) / max(1, fade_in_end - fade_in_start)
             return progress * progress
-
         elif current_time < fade_out_start:
             return 1.0
-
         elif current_time < fade_out_end:
             progress = (current_time - fade_out_start) / max(1, fade_out_end - fade_out_start)
             return 1.0 - (progress * progress)
-
         else:
             return 0.0
 
     def get_light_data(self, palette_name: str = "A") -> dict:
-        """Get the light data (colors, positions, transparency) for this segment"""
         brightness = self.apply_dimming() if self.fade else 1.0
         
-
         segment_start = int(self.current_position - self.total_length / 2)
         positions = [
             segment_start,                          

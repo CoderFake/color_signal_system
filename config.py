@@ -1,8 +1,7 @@
-
 DEFAULT_FPS = 60
 DEFAULT_LED_COUNT = 225
-DEFAULT_OSC_PORT = 5005
-DEFAULT_OSC_IP = "127.0.0.1"
+DEFAULT_OSC_PORT = 9090  # Đặt theo port của app iOS
+DEFAULT_OSC_IP = "0.0.0.0"  # Lắng nghe trên tất cả interfaces
 
 
 DEFAULT_COLOR_PALETTES = {

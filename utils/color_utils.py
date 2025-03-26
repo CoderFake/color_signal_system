@@ -16,7 +16,6 @@ def interpolate_colors(color1: List[int], color2: List[int], factor: float) -> L
     g = int(color1[1] + (color2[1] - color1[1]) * factor)
     b = int(color1[2] + (color2[2] - color1[2]) * factor)
 
-
     return [max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))]
 
 def apply_transparency(base_color: List[int], overlay_color: List[int], 
