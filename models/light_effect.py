@@ -1,35 +1,84 @@
 from typing import Dict, List, Any, Tuple
-import numpy as np
+import json
 import sys
 sys.path.append('..')
 from models.light_segment import LightSegment
 from utils.color_utils import blend_colors, apply_transparency, apply_brightness
 
 class LightEffect:
+    """
+    LightEffect manages multiple LightSegment instances to create a complete lighting effect.
+    """
+    
     def __init__(self, effect_ID: int, led_count: int, fps: int):
+        """
+        Initialize a LightEffect instance.
+        
+        Args:
+            effect_ID: Unique identifier for this effect
+            led_count: Number of LED particles
+            fps: Frames per second
+        """
         self.effect_ID = effect_ID
         self.segments: Dict[int, LightSegment] = {}
         self.led_count = led_count
         self.fps = fps
         self.time_step = 1.0 / fps
+        self.time = 0.0
         self.current_palette = "A"
         
     def add_segment(self, segment_ID: int, segment: LightSegment):
+        """
+        Add a segment to the effect.
+        
+        Args:
+            segment_ID: Unique identifier for the segment
+            segment: LightSegment instance to add
+        """
         self.segments[segment_ID] = segment
         
     def remove_segment(self, segment_ID: int):
+        """
+        Remove a segment from the effect.
+        
+        Args:
+            segment_ID: ID of the segment to remove
+        """
         if segment_ID in self.segments:
             del self.segments[segment_ID]
     
     def update_segment_param(self, segment_ID: int, param_name: str, value: Any):
+        """
+        Update a parameter for a specific segment.
+        
+        Args:
+            segment_ID: ID of the segment to update
+            param_name: Name of the parameter to update
+            value: New parameter value
+        """
         if segment_ID in self.segments:
             self.segments[segment_ID].update_param(param_name, value)
     
     def update_all(self):
+        """
+        Update all segments based on the current time step.
+        """
+        self.time += self.time_step
+        
+
         for segment in self.segments.values():
+            if hasattr(segment, 'time'):
+                segment.time = self.time
+                
             segment.update_position(self.fps)
     
     def get_led_output(self) -> List[List[int]]:
+        """
+        Get the final color values for all LEDs, accounting for overlapping segments.
+        
+        Returns:
+            List of RGB values for each LED
+        """
         led_colors = [[0, 0, 0] for _ in range(self.led_count)]
         led_transparency = [1.0 for _ in range(self.led_count)]
 
@@ -95,3 +144,80 @@ class LightEffect:
                     ))
         
         return led_colors
+        
+    def to_dict(self) -> Dict:
+        """
+        Convert the effect to a dictionary representation.
+        
+        Returns:
+            Dictionary containing effect properties
+        """
+        segments_dict = {}
+        for segment_id, segment in self.segments.items():
+            segments_dict[str(segment_id)] = segment.to_dict()
+            
+        return {
+            "effect_ID": self.effect_ID,
+            "led_count": self.led_count,
+            "fps": self.fps,
+            "time": self.time,
+            "current_palette": self.current_palette,
+            "segments": segments_dict
+        }
+        
+    @classmethod
+    def from_dict(cls, data: Dict):
+        """
+        Create an effect from a dictionary representation.
+        
+        Args:
+            data: Dictionary containing effect properties
+            
+        Returns:
+            A new LightEffect instance
+        """
+        effect = cls(
+            effect_ID=data["effect_ID"],
+            led_count=data["led_count"],
+            fps=data["fps"]
+        )
+        
+        if "time" in data:
+            effect.time = data["time"]
+            
+        if "current_palette" in data:
+            effect.current_palette = data["current_palette"]
+            
+        for segment_id_str, segment_data in data["segments"].items():
+            segment = LightSegment.from_dict(segment_data)
+            effect.add_segment(int(segment_id_str), segment)
+            
+        return effect
+        
+    def save_to_json(self, file_path: str):
+        """
+        Save the effect configuration to a JSON file.
+        
+        Args:
+            file_path: Path to save the JSON file
+        """
+        data = self.to_dict()
+        
+        with open(file_path, 'w') as f:
+            json.dump(data, f, indent=4)
+            
+    @classmethod
+    def load_from_json(cls, file_path: str):
+        """
+        Load an effect configuration from a JSON file.
+        
+        Args:
+            file_path: Path to the JSON file
+            
+        Returns:
+            A new LightEffect instance with the loaded configuration
+        """
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+            
+        return cls.from_dict(data)

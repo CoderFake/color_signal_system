@@ -10,6 +10,8 @@ import copy
 
 sys.path.append('..')
 from models.light_effect import LightEffect
+from models.light_segment import LightSegment
+from models.light_scene import LightScene
 from config import (
     UI_WIDTH, UI_HEIGHT, UI_BACKGROUND_COLOR, DEFAULT_COLOR_PALETTES,
     DEFAULT_FPS, DEFAULT_LED_COUNT
@@ -18,23 +20,22 @@ from config import (
 class LEDSimulator:
     """
     GUI simulator for LED tape light visualization.
-    Provides interactive controls for manipulating LightSegment and LightEffect properties.
+    Provides interactive controls for manipulating LightSegment, LightEffect, and LightScene properties.
     """
     
-    def __init__(self, light_effects: Dict[int, LightEffect]):
+    def __init__(self, scene: LightScene):
         """
         Initialize the LED simulator.
         
         Args:
-            light_effects: Dictionary mapping effect_ID to LightEffect instances
+            scene: The active LightScene to visualize
         """
         pygame.init()
         
-        self.effects = light_effects
-        self.active_effect_id = min(light_effects.keys()) if light_effects else 1
+        self.scene = scene
+        self.active_scene_id = scene.scene_ID
+        self.active_effect_id = scene.current_effect_ID if scene.current_effect_ID else min(scene.effects.keys()) if scene.effects else 1
         self.active_segment_id = 1
-        self.current_palette = "A"
-        self.palettes = DEFAULT_COLOR_PALETTES.copy()
         
         self.is_playing = True
         self.fps = DEFAULT_FPS
@@ -115,7 +116,7 @@ class LEDSimulator:
         }
     
     def _save_segment_state(self):
-        """Lưu trạng thái chi tiết của segment hiện tại"""
+        """Save the detailed state of the current segment."""
         segment = self._get_active_segment()
         if segment:
             effect_id = self.active_effect_id
@@ -135,7 +136,7 @@ class LEDSimulator:
             }
     
     def _restore_segment_state(self):
-        """Khôi phục trạng thái đã lưu cho segment hiện tại"""
+        """Restore the saved state for the current segment."""
         segment = self._get_active_segment()
         effect_id = self.active_effect_id
         segment_id = self.active_segment_id
@@ -158,7 +159,7 @@ class LEDSimulator:
                 segment.dimmer_time = state['dimmer_time'].copy() if hasattr(state['dimmer_time'], 'copy') else state['dimmer_time']
 
     def _build_ui(self):
-        """Build the complete UI, clearing any existing elements"""
+        """Build the complete UI, clearing any existing elements."""
         try:
             if not self.ui_lock.acquire(False):
                 self.ui_dirty = True
@@ -256,7 +257,7 @@ class LEDSimulator:
                 pass
 
     def _add_panel_toggles(self):
-        """Add toggle buttons for expanding/collapsing panels"""
+        """Add toggle buttons for expanding/collapsing panels."""
         toggle_size = 50
         
         self.ui_elements['top_toggle'] = pygame_gui.elements.UIButton(
@@ -282,9 +283,10 @@ class LEDSimulator:
         )
 
     def _build_top_panel_two_rows(self):
-        """Build top panel with controls in two rows (for narrower windows)"""
+        """Build top panel with controls in two rows (for narrower windows)."""
         row1_y = 10
         
+
         self.ui_elements['play_button'] = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(10, row1_y, 80, 30),
             text='Pause' if self.is_playing else 'Play',
@@ -311,65 +313,79 @@ class LEDSimulator:
             manager=self.manager
         )
         
-        self.ui_elements['effect_label'] = pygame_gui.elements.UILabel(
+
+        self.ui_elements['scene_label'] = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(370, row1_y, 80, 30),
+            text='Scene ID:',
+            manager=self.manager
+        )
+        
+
+        self.ui_elements['scene_buttons'] = []
+        scene_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(460, row1_y, 40, 30),
+            text=str(self.scene.scene_ID),
+            manager=self.manager,
+            tool_tip_text=f"Scene {self.scene.scene_ID}"
+        )
+        self.ui_elements['scene_buttons'].append((scene_button, self.scene.scene_ID))
+        
+
+        row2_y = 45
+        
+        self.ui_elements['effect_label'] = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(10, row2_y, 80, 30),
             text='Effect ID:',
             manager=self.manager
         )
         
         self.ui_elements['effect_buttons'] = []
-        button_x = 460
+        button_x = 100
         button_width = 45
-        for i, effect_id in enumerate(sorted(self.effects.keys())):
+        for i, effect_id in enumerate(sorted(self.scene.effects.keys())):
             x_pos = button_x + i * button_width
             button = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(x_pos, row1_y, 40, 30),
+                relative_rect=pygame.Rect(x_pos, row2_y, 40, 30),
                 text=str(effect_id),
                 manager=self.manager,
                 tool_tip_text=f"Select Effect {effect_id}"
             )
             self.ui_elements['effect_buttons'].append((button, effect_id))
+        
 
-        row2_y = 45
-        
-        self.ui_elements['zoom_label'] = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(10, row2_y, 60, 30),
-            text='Zoom:',
-            manager=self.manager
-        )
-        
         self.ui_elements['zoom_in'] = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(70, row2_y, 40, 30),
+            relative_rect=pygame.Rect(370, row2_y, 40, 30),
             text='+',
             manager=self.manager,
             tool_tip_text="Zoom In"
         )
         
         self.ui_elements['zoom_out'] = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(115, row2_y, 40, 30),
+            relative_rect=pygame.Rect(415, row2_y, 40, 30),
             text='-',
             manager=self.manager,
             tool_tip_text="Zoom Out"
         )
         
         self.ui_elements['zoom_reset'] = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(165, row2_y, 120, 30),
-            text='Reset View',
+            relative_rect=pygame.Rect(460, row2_y, 70, 30),
+            text='Reset',
             manager=self.manager,
             tool_tip_text="Reset Zoom and Pan"
         )
         
         self.ui_elements['center_view'] = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(295, row2_y, 120, 30),
-            text='Center View',
+            relative_rect=pygame.Rect(535, row2_y, 70, 30),
+            text='Center',
             manager=self.manager,
             tool_tip_text="Center View on Segments"
         )
 
     def _build_top_panel_one_row(self):
-        """Build top panel with controls in one row (for wider windows)"""
+        """Build top panel with controls in one row (for wider windows)."""
         row_y = 10
         
+
         self.ui_elements['play_button'] = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(10, row_y, 80, 30),
             text='Pause' if self.is_playing else 'Play',
@@ -377,6 +393,7 @@ class LEDSimulator:
             tool_tip_text="Play/Pause Animation"
         )
         
+
         self.ui_elements['fps_label'] = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(100, row_y, 50, 30),
             text='FPS:',
@@ -396,18 +413,36 @@ class LEDSimulator:
             manager=self.manager
         )
         
-        self.ui_elements['effect_label'] = pygame_gui.elements.UILabel(
+
+        self.ui_elements['scene_label'] = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(370, row_y, 80, 30),
+            text='Scene ID:',
+            manager=self.manager
+        )
+        
+
+        self.ui_elements['scene_buttons'] = []
+        scene_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(460, row_y, 40, 30),
+            text=str(self.scene.scene_ID),
+            manager=self.manager,
+            tool_tip_text=f"Scene {self.scene.scene_ID}"
+        )
+        self.ui_elements['scene_buttons'].append((scene_button, self.scene.scene_ID))
+        
+
+        self.ui_elements['effect_label'] = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(510, row_y, 80, 30),
             text='Effect ID:',
             manager=self.manager
         )
         
         self.ui_elements['effect_buttons'] = []
-        button_x = 460
+        button_x = 600
         button_width = 45
-        max_buttons = min(8, (self.ui_state['width'] - 700) // button_width)
+        max_buttons = min(8, len(self.scene.effects) if self.scene.effects else 0)
         
-        for i, effect_id in enumerate(sorted(self.effects.keys())[:max_buttons]):
+        for i, effect_id in enumerate(sorted(self.scene.effects.keys())[:max_buttons]):
             x_pos = button_x + i * button_width
             button = pygame_gui.elements.UIButton(
                 relative_rect=pygame.Rect(x_pos, row_y, 40, 30),
@@ -417,53 +452,47 @@ class LEDSimulator:
             )
             self.ui_elements['effect_buttons'].append((button, effect_id))
         
+
         zoom_x = button_x + max_buttons * button_width + 10
         
         remaining_width = self.ui_state['width'] - zoom_x - 20
         zoom_controls_width = min(400, remaining_width)
         
         if zoom_controls_width >= 280:
-            self.ui_elements['zoom_label'] = pygame_gui.elements.UILabel(
-                relative_rect=pygame.Rect(zoom_x, row_y, 60, 30),
-                text='Zoom:',
-                manager=self.manager
-            )
-            
-            button_width = (zoom_controls_width - 60) // 4
-            
             self.ui_elements['zoom_in'] = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(zoom_x + 60, row_y, button_width, 30),
+                relative_rect=pygame.Rect(zoom_x, row_y, 40, 30),
                 text='+',
                 manager=self.manager,
                 tool_tip_text="Zoom In"
             )
             
             self.ui_elements['zoom_out'] = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(zoom_x + 60 + button_width, row_y, button_width, 30),
+                relative_rect=pygame.Rect(zoom_x + 45, row_y, 40, 30),
                 text='-',
                 manager=self.manager,
                 tool_tip_text="Zoom Out"
             )
             
             self.ui_elements['zoom_reset'] = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(zoom_x + 60 + button_width*2, row_y, button_width, 30),
+                relative_rect=pygame.Rect(zoom_x + 90, row_y, 70, 30),
                 text='Reset',
                 manager=self.manager,
                 tool_tip_text="Reset Zoom and Pan"
             )
             
             self.ui_elements['center_view'] = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(zoom_x + 60 + button_width*3, row_y, button_width, 30),
+                relative_rect=pygame.Rect(zoom_x + 165, row_y, 70, 30),
                 text='Center',
                 manager=self.manager,
                 tool_tip_text="Center View on Segments"
             )
     
     def _build_control_panel(self):
-        """Build the right side control panel with color and segment controls"""
+        """Build the right side control panel with color and segment controls."""
         panel_y = 10
         panel_width = self.rects['control'].width
         
+
         label_width = 120
         self.ui_elements['palette_label'] = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(
@@ -479,10 +508,10 @@ class LEDSimulator:
         
         self.ui_elements['palette_buttons'] = []
         button_width = 40
-        palette_width = len(self.palettes.keys()) * button_width
+        palette_width = len(self.scene.palettes.keys()) * button_width
         start_x = self.rects['control'].x + (panel_width - palette_width) // 2
         
-        for i, palette_id in enumerate(sorted(self.palettes.keys())):
+        for i, palette_id in enumerate(sorted(self.scene.palettes.keys())):
             x_pos = start_x + i * button_width
             button = pygame_gui.elements.UIButton(
                 relative_rect=pygame.Rect(x_pos, panel_y, 40, 30),
@@ -501,6 +530,7 @@ class LEDSimulator:
         
         panel_y += 50
         
+
         self.ui_elements['segment_label'] = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(
                 self.rects['control'].x + (self.rects['control'].width - 100) // 2, 
@@ -515,8 +545,8 @@ class LEDSimulator:
         panel_y += 30
         
         segments = []
-        if self.active_effect_id in self.effects:
-            segments = sorted(self.effects[self.active_effect_id].segments.keys())
+        if self.active_effect_id in self.scene.effects:
+            segments = sorted(self.scene.effects[self.active_effect_id].segments.keys())
         else:
             segments = [1]
         
@@ -830,6 +860,27 @@ class LEDSimulator:
             self.ui_elements['dimmer_sliders'].append((slider, i, label_element))
             panel_y += 20 + slider_gap
 
+    def _get_active_scene(self):
+        """
+        Get the currently active scene.
+        
+        Returns:
+            The active LightScene instance
+        """
+        return self.scene
+    
+    def _get_active_effect(self):
+        """
+        Get the currently active effect.
+        
+        Returns:
+            LightEffect instance or None if not found
+        """
+        scene = self._get_active_scene()
+        if scene and self.active_effect_id in scene.effects:
+            return scene.effects[self.active_effect_id]
+        return None
+    
     def _get_active_segment(self):
         """
         Get the currently active segment.
@@ -837,16 +888,15 @@ class LEDSimulator:
         Returns:
             LightSegment instance or None if not found
         """
-        if (self.active_effect_id in self.effects and 
-            self.active_segment_id in self.effects[self.active_effect_id].segments):
-            return self.effects[self.active_effect_id].segments[self.active_segment_id]
+        effect = self._get_active_effect()
+        if effect and self.active_segment_id in effect.segments:
+            return effect.segments[self.active_segment_id]
         return None
     
     def _center_view(self):
         """Center the view on the active segments"""
-        if self.active_effect_id in self.effects:
-            effect = self.effects[self.active_effect_id]
-            
+        effect = self._get_active_effect()
+        if effect:
             positions = []
             for segment in effect.segments.values():
                 positions.append(segment.current_position)
@@ -937,6 +987,11 @@ class LEDSimulator:
                     'move_range': segment.move_range.copy(),
                     'is_edge_reflect': segment.is_edge_reflect
                 }
+                
+                if hasattr(segment, 'gradient'):
+                    self._temp_state['gradient'] = segment.gradient
+                if hasattr(segment, 'fade'):
+                    self._temp_state['fade'] = segment.fade
 
             old_width = self.ui_state['width']
             new_width = max(event.size[0], 800)
@@ -1043,19 +1098,28 @@ class LEDSimulator:
             elif ui_element == self.ui_elements.get('center_view'):
                 self._center_view()
             
+
+            if 'scene_buttons' in self.ui_elements:
+                for button, scene_id in self.ui_elements['scene_buttons']:
+                    if ui_element == button:
+
+                        self.active_scene_id = scene_id
+                        break
+            
+
             if 'effect_buttons' in self.ui_elements:
                 for button, effect_id in self.ui_elements['effect_buttons']:
                     if ui_element == button:
                         self.active_effect_id = effect_id
                         
-                        if self.active_effect_id in self.effects:
-                            segments = sorted(self.effects[self.active_effect_id].segments.keys())
-                            if segments:
-                                self.active_segment_id = segments[0]
+                        effect = self._get_active_effect()
+                        if effect and effect.segments:
+                            self.active_segment_id = min(effect.segments.keys())
                         
                         self.ui_dirty = True
                         break
             
+
             if 'segment_buttons' in self.ui_elements:
                 for button, segment_id in self.ui_elements['segment_buttons']:
                     if ui_element == button:
@@ -1063,34 +1127,37 @@ class LEDSimulator:
                         self.ui_dirty = True
                         break
             
+
             if 'palette_buttons' in self.ui_elements:
                 for button, palette_id in self.ui_elements['palette_buttons']:
                     if ui_element == button:
-                        self.current_palette = palette_id
-                        
-                        for effect in self.effects.values():
-                            effect.current_palette = self.current_palette
-                        
-                        self.ui_dirty = True
+                        scene = self._get_active_scene()
+                        if scene:
+                            scene.set_palette(palette_id)
+                            self.ui_dirty = True
                         break
             
+
             if 'color_buttons' in self.ui_elements:
                 for button, color_index in self.ui_elements['color_buttons']:
                     if ui_element == button:
                         self._cycle_color(color_index)
                         break
             
+
             if 'gradient_buttons' in self.ui_elements:
                 for button, color_position in self.ui_elements['gradient_buttons']:
                     if ui_element == button:
                         self._cycle_gradient_color(color_position)
                         break
             
+
             segment = self._get_active_segment()
             if segment:
                 if ui_element == self.ui_elements.get('reflect_toggle'):
                     segment.is_edge_reflect = not segment.is_edge_reflect
                     ui_element.set_text('ON' if segment.is_edge_reflect else 'OFF')
+                    self._update_segment_state_value('is_edge_reflect', segment.is_edge_reflect)
                 
                 elif ui_element == self.ui_elements.get('gradient_toggle'):
                     if hasattr(segment, 'gradient'):
@@ -1098,16 +1165,18 @@ class LEDSimulator:
                         if segment.gradient and hasattr(segment, 'gradient_colors') and segment.gradient_colors[0] == 0:
                             segment.gradient_colors[0] = 1
                         ui_element.set_text('ON' if segment.gradient else 'OFF')
-                        self.ui_dirty = True
+                        self._update_segment_state_value('gradient', segment.gradient)
                 
                 elif ui_element == self.ui_elements.get('fade_toggle'):
                     if hasattr(segment, 'fade'):
                         segment.fade = not segment.fade
                         ui_element.set_text('ON' if segment.fade else 'OFF')
+                        self._update_segment_state_value('fade', segment.fade)
         except Exception as e:
             print(f"Error handling button press: {e}")
 
     def _update_segment_state_value(self, param_name, value):
+        """Update a specific value in the saved segment state."""
         effect_id = self.active_effect_id
         segment_id = self.active_segment_id
         
@@ -1134,8 +1203,11 @@ class LEDSimulator:
                     except:
                         pass
                 
-                for effect in self.effects.values():
-                    effect.fps = self.fps
+
+                scene = self._get_active_scene()
+                if scene:
+                    for effect in scene.effects.values():
+                        effect.fps = self.fps
             
             segment = self._get_active_segment()
             if segment and not self.ui_rebuilding:
@@ -1176,7 +1248,6 @@ class LEDSimulator:
                     if old_range[1] != new_max and 'range_max' in self.ui_elements:
                         try:
                             self.ui_elements['range_max'].set_current_value(new_max)
-                            print(f"Updated range_max slider to: {new_max}")
                         except Exception as e:
                             print(f"Error updating range_max slider: {e}")
                 
@@ -1213,7 +1284,6 @@ class LEDSimulator:
                 if 'dimmer_sliders' in self.ui_elements:
                     for slider, dimmer_index, _ in self.ui_elements['dimmer_sliders']:
                         if ui_element == slider and dimmer_index < len(segment.dimmer_time):
-                            old_value = segment.dimmer_time[dimmer_index]
                             dimmer_time = segment.dimmer_time.copy() if hasattr(segment.dimmer_time, 'copy') else list(segment.dimmer_time)
                             dimmer_time[dimmer_index] = int(value)
                             segment.dimmer_time = dimmer_time
@@ -1267,7 +1337,6 @@ class LEDSimulator:
         
         if old_zoom != self.led_state['zoom']:
             center = self.rects['display'].width / 2
-            center = self.rects['display'].width / 2
             center_led = (center - self.led_state['pan']) / (old_zoom * (self.led_state['size'] + self.led_state['spacing']))
             self.led_state['pan'] = center - center_led * self.led_state['zoom'] * (self.led_state['size'] + self.led_state['spacing'])
     
@@ -1279,183 +1348,19 @@ class LEDSimulator:
             color_index: Index in the segment's color list to change
         """
         segment = self._get_active_segment()
-        if segment and color_index < len(segment.color):
+        scene = self._get_active_scene()
+        
+        if segment and scene and color_index < len(segment.color):
             current_idx = segment.color[color_index]
-            next_idx = (current_idx + 1) % len(self.palettes[self.current_palette]) if current_idx >= 0 else 0
+            
+            palette = scene.palettes.get(scene.current_palette, [])
+            next_idx = (current_idx + 1) % len(palette) if current_idx >= 0 else 0
             
             new_colors = segment.color.copy()
             new_colors[color_index] = next_idx
             segment.color = new_colors
             
-            segment.rgb_color = segment.calculate_rgb(self.current_palette)
+            segment.rgb_color = segment.calculate_rgb(scene.current_palette)
             self.ui_dirty = True
     
-    def _cycle_gradient_color(self, color_position):
-        """
-        Cycle through available colors for gradient endpoints.
-        
-        Args:
-            color_position: Position in gradient_colors to change
-        """
-        segment = self._get_active_segment()
-        if segment and hasattr(segment, 'gradient_colors'):
-            current_idx = segment.gradient_colors[color_position]
-            next_idx = (current_idx + 1) % len(self.palettes[self.current_palette]) if current_idx >= 0 else 0
-            
-            gradient_colors = segment.gradient_colors.copy()
-            gradient_colors[color_position] = next_idx
-            segment.update_param('gradient_colors', gradient_colors)
-            self.ui_dirty = True
-    
-    def update(self):
-        """Update all light effects if playing"""
-        try:
-            if self.is_playing:
-                for effect in self.effects.values():
-                    effect.update_all()
-        except Exception as e:
-            print(f"Error in update method: {e}")
-    
-    def draw(self):
-        """Draw the UI and LED visualization"""
-        try:
-            self.screen.fill(UI_BACKGROUND_COLOR)
-            
-            if self.ui_state['resizing']:
-                font = pygame.font.SysFont('Arial', 24)
-                text = font.render("Đang thay đổi kích thước...", True, (220, 220, 220))
-                text_rect = text.get_rect(center=(self.ui_state['width']//2, self.ui_state['height']//2))
-                self.screen.blit(text, text_rect)
-                return
-                
-            try:
-                time_delta = self.clock.get_time() / 1000.0
-                self.manager.update(time_delta)
-            except Exception as e:
-                print(f"Error updating UI manager: {e}")
-            
-            self._draw_led_visualization()
-
-            try:
-                self.manager.draw_ui(self.screen)
-            except Exception as e:
-                print(f"Error drawing UI: {e}")
-
-            if self.ui_state['control_panel_expanded'] and 'palette_rect' in self.ui_elements:
-                self._draw_color_palette()
-            
-            self._draw_info_text()
-        except Exception as e:
-            print(f"Error in draw method: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def _draw_led_visualization(self):
-        """Draw the LED tape visualization in the display area"""
-        if self.active_effect_id not in self.effects:
-            return
-        
-        effect = self.effects[self.active_effect_id]
-        
-        led_colors = effect.get_led_output()
-        
-        led_size = max(1, int(self.led_state['size'] * self.led_state['zoom']))
-        led_spacing = max(0, int(self.led_state['spacing'] * self.led_state['zoom']))
-        led_total_width = led_size + led_spacing
-        
-        first_visible = max(0, int((-self.led_state['pan']) / led_total_width))
-        last_visible = min(
-            len(led_colors) - 1, 
-            first_visible + int(self.rects['display'].width / led_total_width) + 1
-        )
-        
-        center_y = self.rects['display'].y + self.rects['display'].height // 2
-        
-        for i in range(first_visible, last_visible + 1):
-            if i >= len(led_colors):
-                break
-            
-            x = self.rects['display'].x + i * led_total_width + self.led_state['pan']
-            y = center_y - led_size // 2
-            
-            color = led_colors[i]
-            if not isinstance(color, (list, tuple)) or len(color) < 3:
-                color = (255, 0, 0)  # Default to red if invalid
-            else:
-                color = tuple(max(0, min(255, c)) for c in color[:3])
-            
-            try:
-                pygame.draw.rect(self.screen, color, (x, y, led_size, led_size))
-                border_color = tuple(min(c + 30, 255) for c in color)
-                pygame.draw.rect(self.screen, border_color, (x, y, led_size, led_size), 1)
-            except Exception as e:
-                print(f"Error drawing LED {i}: {e}")
-    
-    def _draw_color_palette(self):
-        """Draw the current color palette in the control panel"""
-        palette_rect = self.ui_elements['palette_rect']
-        palette = self.palettes[self.current_palette]
-        color_width = palette_rect.width / len(palette)
-        
-        pygame.draw.rect(self.screen, (50, 50, 50), palette_rect)
-        
-        for i, color in enumerate(palette):
-            if isinstance(color, list):
-                color = tuple(color)
-            
-            rect = pygame.Rect(
-                palette_rect.x + i * color_width,
-                palette_rect.y,
-                color_width,
-                palette_rect.height
-            )
-            
-            pygame.draw.rect(self.screen, color, rect)
-            pygame.draw.rect(self.screen, (100, 100, 100), rect, 1)
-            
-            font = pygame.font.SysFont('Arial', 14)
-            text_color = (0, 0, 0) if sum(color) > 380 else (255, 255, 255)
-            text = font.render(str(i), True, text_color)
-            text_rect = text.get_rect(center=(rect.x + rect.width/2, rect.y + rect.height/2))
-            self.screen.blit(text, text_rect)
-    
-    def _draw_info_text(self):
-        """Draw information text at the bottom of the screen"""
-        font = pygame.font.SysFont('Arial', 14)
-        
-        fps_text = f"FPS: {int(self.clock.get_fps())}"
-        fps_surf = font.render(fps_text, True, (220, 220, 220))
-        self.screen.blit(fps_surf, (10, self.ui_state['height'] - 20))
-        
-        segment = self._get_active_segment()
-        if segment:
-            info_text = f"Effect {self.active_effect_id}, Segment {self.active_segment_id} - Position: {int(segment.current_position)}, Speed: {int(segment.move_speed)}"
-            info_surf = font.render(info_text, True, (220, 220, 220))
-            self.screen.blit(info_surf, (self.rects['display'].x + 10, self.rects['display'].y + 10))
-    
-    def run(self):
-        """Main application loop"""
-        running = True
-        
-        while running:
-            try:
-                time_delta = self.clock.tick(self.fps) / 1000.0
-                
-                running = self.handle_events()
-                
-                self.update()
-                
-                self.draw()
-                
-                pygame.display.flip()
-            except Exception as e:
-                print(f"Exception in main loop: {e}")
-                import traceback
-                traceback.print_exc()
-
-                time.sleep(0.1)
-        
-        try:
-            pygame.quit()
-        except:
-            pass
+    def _cycle_gradient_color(self, color

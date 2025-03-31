@@ -7,10 +7,27 @@ from config import DEFAULT_COLOR_PALETTES
 from utils.color_utils import interpolate_colors
 
 class LightSegment:
+    """
+    LightSegment represents a segment of light with specific properties like color, position, and movement.
+    """
 
     def __init__(self, segment_ID: int, color: List[int], transparency: List[float], 
                 length: List[int], move_speed: float, move_range: List[int], 
                 initial_position: int, is_edge_reflect: bool, dimmer_time: List[int]):
+        """
+        Initialize a LightSegment instance.
+        
+        Args:
+            segment_ID: Unique identifier for this segment
+            color: List of color indices from the palette
+            transparency: Transparency values for each color point
+            length: Lengths of each segment section
+            move_speed: Speed of movement in LED particles per second
+            move_range: Range of movement [left_edge, right_edge]
+            initial_position: Initial position of the segment
+            is_edge_reflect: Whether to reflect at edges or wrap around
+            dimmer_time: Fade timing parameters [fade_in_start, fade_in_end, fade_out_start, fade_out_end, cycle_time]
+        """
         self.segment_ID = segment_ID
         self.color = color
         self.transparency = transparency
@@ -21,8 +38,8 @@ class LightSegment:
         self.current_position = float(initial_position)
         self.is_edge_reflect = is_edge_reflect
         self.dimmer_time = dimmer_time
-        self.time = 0.0
         
+
         self.gradient = False
         self.fade = False
         self.gradient_colors = [0, -1, -1]
@@ -31,6 +48,13 @@ class LightSegment:
         self.total_length = sum(self.length)
 
     def update_param(self, param_name: str, value: Any):
+        """
+        Update a specific parameter of the segment.
+        
+        Args:
+            param_name: Name of the parameter to update
+            value: New value for the parameter
+        """
         if param_name == 'color':
             setattr(self, param_name, value)
             self.rgb_color = self.calculate_rgb()
@@ -44,8 +68,13 @@ class LightSegment:
                 self.current_position = self.move_range[1]
     
     def update_position(self, fps: int):
+        """
+        Update the position of the segment based on move_speed and fps.
+        
+        Args:
+            fps: Frames per second
+        """
         dt = 1.0 / fps
-        self.time += dt
         
         delta = self.move_speed * dt
         self.current_position += delta
@@ -64,6 +93,15 @@ class LightSegment:
                 self.current_position = self.move_range[0] + (self.current_position - self.move_range[1])
 
     def calculate_rgb(self, palette_name: str = "A") -> List[List[int]]:
+        """
+        Calculate RGB color values from color palette indices.
+        
+        Args:
+            palette_name: Name of the palette to use
+            
+        Returns:
+            List of RGB values corresponding to each color index
+        """
         from config import DEFAULT_COLOR_PALETTES
         
         palette = DEFAULT_COLOR_PALETTES.get(palette_name, DEFAULT_COLOR_PALETTES["A"])
@@ -88,11 +126,17 @@ class LightSegment:
         return rgb_values
 
     def apply_dimming(self) -> float:
+        """
+        Apply fade effect based on dimmer_time parameters.
+        
+        Returns:
+            Brightness level from 0.0 to 1.0
+        """
         if not self.fade or not self.dimmer_time or len(self.dimmer_time) < 5 or self.dimmer_time[4] == 0:
             return 1.0 
             
         cycle_time = self.dimmer_time[4]
-        current_time = int((self.time * 1000) % cycle_time)
+        current_time = int((self.time * 1000) % cycle_time) if hasattr(self, 'time') else 0
         fade_in_start = self.dimmer_time[0]
         fade_in_end = self.dimmer_time[1]
         fade_out_start = self.dimmer_time[2]
@@ -112,6 +156,15 @@ class LightSegment:
             return 0.0
 
     def get_light_data(self, palette_name: str = "A") -> dict:
+        """
+        Get data for light rendering based on current segment state.
+        
+        Args:
+            palette_name: Name of the palette to use
+            
+        Returns:
+            Dictionary with segment rendering information
+        """
         brightness = self.apply_dimming() if self.fade else 1.0
         
         segment_start = int(self.current_position - self.total_length / 2)
@@ -133,3 +186,70 @@ class LightSegment:
         }
         
         return light_data
+        
+    def to_dict(self) -> Dict:
+        """
+        Convert the segment to a dictionary representation.
+        
+        Returns:
+            Dictionary containing segment properties
+        """
+        data = {
+            "segment_ID": self.segment_ID,
+            "color": self.color,
+            "transparency": self.transparency,
+            "length": self.length,
+            "move_speed": self.move_speed,
+            "move_range": self.move_range,
+            "initial_position": self.initial_position,
+            "current_position": self.current_position,
+            "is_edge_reflect": self.is_edge_reflect,
+            "dimmer_time": self.dimmer_time
+        }
+        
+
+        if hasattr(self, "gradient"):
+            data["gradient"] = self.gradient
+        if hasattr(self, "fade"):
+            data["fade"] = self.fade
+        if hasattr(self, "gradient_colors"):
+            data["gradient_colors"] = self.gradient_colors
+            
+        return data
+        
+    @classmethod
+    def from_dict(cls, data: Dict):
+        """
+        Create a segment from a dictionary representation.
+        
+        Args:
+            data: Dictionary containing segment properties
+            
+        Returns:
+            A new LightSegment instance
+        """
+        segment = cls(
+            segment_ID=data["segment_ID"],
+            color=data["color"],
+            transparency=data["transparency"],
+            length=data["length"],
+            move_speed=data["move_speed"],
+            move_range=data["move_range"],
+            initial_position=data["initial_position"],
+            is_edge_reflect=data["is_edge_reflect"],
+            dimmer_time=data["dimmer_time"]
+        )
+        
+
+        if "current_position" in data:
+            segment.current_position = data["current_position"]
+            
+
+        if "gradient" in data:
+            segment.gradient = data["gradient"]
+        if "fade" in data:
+            segment.fade = data["fade"]
+        if "gradient_colors" in data:
+            segment.gradient_colors = data["gradient_colors"]
+            
+        return segment
