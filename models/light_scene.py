@@ -65,8 +65,9 @@ class LightScene:
         if palette_id in self.palettes:
             self.current_palette = palette_id
 
+
             for effect in self.effects.values():
-                effect.current_palette = palette_id
+                effect.set_palette(palette_id)
     
     def update_palette(self, palette_id: str, colors: List[List[int]]):
         """
@@ -78,6 +79,7 @@ class LightScene:
         """
         if palette_id in self.palettes:
             self.palettes[palette_id] = colors
+
 
             if palette_id == self.current_palette:
                 self.set_palette(palette_id)
@@ -130,6 +132,8 @@ class LightScene:
                 "effect_ID": effect.effect_ID,
                 "led_count": effect.led_count,
                 "fps": effect.fps,
+                "time": effect.time,
+                "current_palette": effect.current_palette,
                 "segments": {}
             }
             
@@ -190,6 +194,12 @@ class LightScene:
                 led_count=effect_data["led_count"],
                 fps=effect_data["fps"]
             )
+            
+            if "time" in effect_data:
+                effect.time = effect_data["time"]
+                
+            if "current_palette" in effect_data:
+                effect.current_palette = effect_data["current_palette"]
             
             for segment_id_str, segment_data in effect_data["segments"].items():
                 segment_id = int(segment_id_str)

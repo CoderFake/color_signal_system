@@ -1,9 +1,7 @@
 from typing import List, Any, Dict
-import numpy as np
 import sys
 import math
 sys.path.append('..')
-from config import DEFAULT_COLOR_PALETTES
 from utils.color_utils import interpolate_colors
 
 class LightSegment:
@@ -42,8 +40,8 @@ class LightSegment:
 
         self.gradient = False
         self.fade = False
-        self.gradient_colors = [0, -1, -1]
-
+        self.gradient_colors = [0, -1, -1]  # On/Off flag, left color, right color
+        
         self.rgb_color = self.calculate_rgb()
         self.total_length = sum(self.length)
 
@@ -112,11 +110,12 @@ class LightSegment:
                 if isinstance(color_idx, int) and 0 <= color_idx < len(palette):
                     rgb_values.append(palette[color_idx])
                 else:
-                    rgb_values.append([255, 0, 0]) 
+                    rgb_values.append([255, 0, 0])  # Default to red for invalid indices
             except Exception as e:
                 print(f"Error getting color {color_idx} from palette: {e}")
                 rgb_values.append([255, 0, 0])
         
+
         while len(rgb_values) < 4:
             if rgb_values:
                 rgb_values.append(rgb_values[-1])
@@ -125,64 +124,91 @@ class LightSegment:
         
         return rgb_values
 
-    def apply_dimming(self) -> float:
+    def apply_dimming(self, current_time: float = 0.0) -> float:
         """
         Apply fade effect based on dimmer_time parameters.
         
+        Args:
+            current_time: Current time value (in seconds)
+            
         Returns:
             Brightness level from 0.0 to 1.0
         """
         if not self.fade or not self.dimmer_time or len(self.dimmer_time) < 5 or self.dimmer_time[4] == 0:
-            return 1.0 
+            return 1.0  # Full brightness if fade is disabled
             
         cycle_time = self.dimmer_time[4]
-        current_time = int((self.time * 1000) % cycle_time) if hasattr(self, 'time') else 0
+
+        current_time_ms = int((current_time * 1000) % cycle_time)
         fade_in_start = self.dimmer_time[0]
         fade_in_end = self.dimmer_time[1]
         fade_out_start = self.dimmer_time[2]
         fade_out_end = self.dimmer_time[3]
 
-        if current_time < fade_in_start:
+        if current_time_ms < fade_in_start:
             return 0.0
-        elif current_time < fade_in_end:
-            progress = (current_time - fade_in_start) / max(1, fade_in_end - fade_in_start)
-            return progress * progress
-        elif current_time < fade_out_start:
+        elif current_time_ms < fade_in_end:
+            progress = (current_time_ms - fade_in_start) / max(1, fade_in_end - fade_in_start)
+            return progress * progress  # Use quadratic easing for smoother fade
+        elif current_time_ms < fade_out_start:
             return 1.0
-        elif current_time < fade_out_end:
-            progress = (current_time - fade_out_start) / max(1, fade_out_end - fade_out_start)
-            return 1.0 - (progress * progress)
+        elif current_time_ms < fade_out_end:
+            progress = (current_time_ms - fade_out_start) / max(1, fade_out_end - fade_out_start)
+            return 1.0 - (progress * progress)  # Quadratic easing for fade out
         else:
             return 0.0
 
-    def get_light_data(self, palette_name: str = "A") -> dict:
+    def get_light_data(self, palette_name: str = "A", current_time: float = 0.0) -> dict:
         """
         Get data for light rendering based on current segment state.
         
         Args:
             palette_name: Name of the palette to use
+            current_time: Current time value (in seconds)
             
         Returns:
             Dictionary with segment rendering information
         """
-        brightness = self.apply_dimming() if self.fade else 1.0
+        brightness = self.apply_dimming(current_time) if hasattr(self, 'fade') and self.fade else 1.0
         
         segment_start = int(self.current_position - self.total_length / 2)
         positions = [
-            segment_start,                          
-            segment_start + self.length[0],           
-            segment_start + self.length[0] + self.length[1],  
-            segment_start + self.total_length        
+            segment_start,                          # Left edge
+            segment_start + self.length[0],         # First transition
+            segment_start + self.length[0] + self.length[1],  # Second transition
+            segment_start + self.total_length       # Right edge
         ]
 
         colors = self.calculate_rgb(palette_name)
+        
+
+        if hasattr(self, 'gradient') and self.gradient and hasattr(self, 'gradient_colors'):
+            if self.gradient_colors[0] == 1:  # If gradient is on
+                from config import DEFAULT_COLOR_PALETTES
+                palette = DEFAULT_COLOR_PALETTES.get(palette_name, DEFAULT_COLOR_PALETTES["A"])
+                
+
+                left_idx = self.gradient_colors[1]
+                right_idx = self.gradient_colors[2]
+                
+                if 0 <= left_idx < len(palette) and 0 <= right_idx < len(palette):
+                    left_color = palette[left_idx]
+                    right_color = palette[right_idx]
+                    
+
+                    colors[0] = left_color
+                    colors[3] = right_color
+                    colors[1] = interpolate_colors(left_color, right_color, 0.33)
+                    colors[2] = interpolate_colors(left_color, right_color, 0.67)
         
         light_data = {
             'segment_id': self.segment_ID,
             'brightness': brightness,
             'positions': positions,
             'colors': colors,
-            'transparency': self.transparency
+            'transparency': self.transparency,
+            'gradient': getattr(self, 'gradient', False),
+            'fade': getattr(self, 'fade', False)
         }
         
         return light_data

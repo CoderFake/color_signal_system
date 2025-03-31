@@ -27,6 +27,18 @@ class LightEffect:
         self.time = 0.0
         self.current_palette = "A"
         
+    def set_palette(self, palette: str):
+        """
+        Set the current palette for this effect.
+        
+        Args:
+            palette: Palette ID to use
+        """
+        self.current_palette = palette
+
+        for segment in self.segments.values():
+            segment.rgb_color = segment.calculate_rgb(self.current_palette)
+        
     def add_segment(self, segment_ID: int, segment: LightSegment):
         """
         Add a segment to the effect.
@@ -67,9 +79,6 @@ class LightEffect:
         
 
         for segment in self.segments.values():
-            if hasattr(segment, 'time'):
-                segment.time = self.time
-                
             segment.update_position(self.fps)
     
     def get_led_output(self) -> List[List[int]]:
@@ -82,10 +91,12 @@ class LightEffect:
         led_colors = [[0, 0, 0] for _ in range(self.led_count)]
         led_transparency = [1.0 for _ in range(self.led_count)]
 
+
         sorted_segments = sorted(self.segments.items(), key=lambda x: x[0])
         
         for segment_id, segment in sorted_segments:
-            segment_data = segment.get_light_data(self.current_palette)
+            segment_data = segment.get_light_data(self.current_palette, self.time)
+
 
             if segment_data['brightness'] <= 0:
                 continue
@@ -95,12 +106,15 @@ class LightEffect:
             transparency = segment_data['transparency']
             brightness = segment_data['brightness']
             
+
             start_pos = max(0, int(positions[0]))
             end_pos = min(self.led_count - 1, int(positions[3]))
             
+
             for led_idx in range(start_pos, end_pos + 1):
                 if led_idx < 0 or led_idx >= self.led_count:
                     continue
+
 
                 if led_idx <= positions[1]:
                     rel_pos = (led_idx - positions[0]) / max(1, positions[1] - positions[0])
@@ -123,14 +137,19 @@ class LightEffect:
                 from utils.color_utils import interpolate_colors
                 led_color = interpolate_colors(color1, color2, rel_pos)
                 
+
                 led_color = apply_brightness(led_color, brightness)
                 
+
                 current_transparency = transparency[trans_idx]
                 
+
                 if led_colors[led_idx] == [0, 0, 0]:
+
                     led_colors[led_idx] = led_color
                     led_transparency[led_idx] = current_transparency
                 else:
+
                     weight_current = led_transparency[led_idx]
                     weight_new = current_transparency * (1.0 - led_transparency[led_idx])
 
@@ -138,6 +157,7 @@ class LightEffect:
                         [led_colors[led_idx], led_color],
                         [weight_current, weight_new]
                     )
+
 
                     led_transparency[led_idx] = max(0.0, min(1.0, 
                         led_transparency[led_idx] + current_transparency * (1.0 - led_transparency[led_idx])

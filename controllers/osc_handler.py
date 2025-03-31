@@ -43,6 +43,7 @@ class OSCHandler:
     def setup_dispatcher(self):
         """
         Set up the OSC message dispatcher with appropriate message handlers.
+        Maps OSC address patterns to callback functions.
         """
 
         self.dispatcher.map("/scene/*/effect/*/segment/*/*", self.scene_effect_segment_callback)
@@ -93,6 +94,7 @@ class OSCHandler:
     def scene_effect_segment_callback(self, address, *args):
         """
         Handle OSC messages for updating segment parameters within a scene.
+        Address format: /scene/{scene_ID}/effect/{effect_ID}/segment/{segment_ID}/{param_name}
         
         Args:
             address: OSC address pattern
@@ -130,8 +132,14 @@ class OSCHandler:
         segment = effect.segments[segment_id]
         ui_updated = False
 
+
         if param_name == "color":
-            if isinstance(value, dict):
+            if isinstance(value, (list, tuple)) and len(value) >= 1:
+                segment.update_param("color", value)
+                print(f"Updated colors directly: {value}")
+                ui_updated = True
+                
+            elif isinstance(value, dict):
                 if "colors" in value:
                     segment.update_param("color", value["colors"])
                     print(f"Updated colors: {value['colors']}")
@@ -146,10 +154,46 @@ class OSCHandler:
                     segment.update_param("gradient", value["gradient"] == 1)
                     print(f"Updated gradient: {value['gradient']}")
                     ui_updated = True
-                    
-            elif isinstance(value, list) and len(value) >= 1:
-                segment.update_param("color", value)
-                print(f"Updated colors directly: {value}")
+
+        elif param_name == "transparency":
+            if isinstance(value, (list, tuple)) and len(value) >= 1:
+                segment.update_param("transparency", value)
+                print(f"Updated transparency: {value}")
+                ui_updated = True
+
+        elif param_name == "length":
+            if isinstance(value, (list, tuple)) and len(value) >= 1:
+                segment.update_param("length", value)
+                print(f"Updated length: {value}")
+                ui_updated = True
+
+        elif param_name == "move_speed":
+            segment.update_param("move_speed", float(value))
+            print(f"Updated move_speed: {value}")
+            ui_updated = True
+
+        elif param_name == "move_range":
+            if isinstance(value, (list, tuple)) and len(value) == 2:
+                segment.update_param("move_range", list(value))
+                print(f"Updated move_range: {value}")
+                ui_updated = True
+
+        elif param_name == "initial_position":
+            pos = int(value)
+            segment.update_param("initial_position", pos)
+            segment.update_param("current_position", float(pos))
+            print(f"Updated initial_position: {value}")
+            ui_updated = True
+
+        elif param_name == "is_edge_reflect":
+            segment.update_param("is_edge_reflect", bool(value))
+            print(f"Updated is_edge_reflect: {value}")
+            ui_updated = True
+
+        elif param_name == "dimmer_time":
+            if isinstance(value, (list, tuple)) and len(value) >= 5:
+                segment.update_param("dimmer_time", list(value))
+                print(f"Updated dimmer_time: {value}")
                 ui_updated = True
 
         elif param_name == "position":
@@ -165,12 +209,13 @@ class OSCHandler:
                     print(f"Updated speed: {value['speed']}")
                     ui_updated = True
                     
-                if "range" in value and isinstance(value["range"], list) and len(value["range"]) == 2:
-                    segment.update_param("move_range", value["range"])
+                if "range" in value and isinstance(value["range"], (list, tuple)) and len(value["range"]) == 2:
+                    segment.update_param("move_range", list(value["range"]))
                     print(f"Updated range: {value['range']}")
                     ui_updated = True
                     
                 if "interval" in value:
+
                     segment.update_param("position_interval", value["interval"])
                     print(f"Updated interval: {value['interval']}")
                     ui_updated = True
@@ -178,13 +223,18 @@ class OSCHandler:
         elif param_name == "span":
             if isinstance(value, dict):
                 if "span" in value:
-                    new_length = [value["span"]//3, value["span"]//3, value["span"]//3]
+
+                    span = int(value["span"])
+                    new_length = [span//3, span//3, span//3]
+
+                    if sum(new_length) < span:
+                        new_length[0] += span - sum(new_length)
                     segment.update_param("length", new_length)
                     print(f"Updated span length: {new_length}")
                     ui_updated = True
                     
-                if "range" in value and isinstance(value["range"], list) and len(value["range"]) == 2:
-                    segment.update_param("span_range", value["range"])
+                if "range" in value and isinstance(value["range"], (list, tuple)) and len(value["range"]) == 2:
+                    segment.update_param("span_range", list(value["range"]))
                     print(f"Updated span range: {value['range']}")
                     ui_updated = True
                     
@@ -198,8 +248,8 @@ class OSCHandler:
                     print(f"Updated span interval: {value['interval']}")
                     ui_updated = True
                     
-                if "gradient_colors" in value and isinstance(value["gradient_colors"], list):
-                    segment.update_param("gradient_colors", value["gradient_colors"])
+                if "gradient_colors" in value and isinstance(value["gradient_colors"], (list, tuple)):
+                    segment.update_param("gradient_colors", list(value["gradient_colors"]))
                     print(f"Updated gradient colors: {value['gradient_colors']}")
                     ui_updated = True
                     
@@ -208,17 +258,20 @@ class OSCHandler:
                     print(f"Updated fade: {value['fade']}")
                     ui_updated = True
 
+
         else:
             segment.update_param(param_name, value)
             print(f"Updated {param_name}: {value}")
             ui_updated = True
             
+
         if ui_updated and self.simulator:
             self._update_simulator(scene_id, effect_id, segment_id)
     
     def scene_effect_palette_callback(self, address, *args):
         """
         Handle OSC messages for setting a palette for a specific effect.
+        Address format: /scene/{scene_ID}/effect/{effect_ID}/set_palette
         
         Args:
             address: OSC address pattern
@@ -246,7 +299,7 @@ class OSCHandler:
             return
         
         if palette_id in scene.palettes:
-            scene.effects[effect_id].current_palette = palette_id
+            scene.effects[effect_id].set_palette(palette_id)
             print(f"Set palette for effect {effect_id} to {palette_id}")
             
             if self.simulator:
@@ -255,6 +308,7 @@ class OSCHandler:
     def scene_palette_callback(self, address, *args):
         """
         Handle OSC messages for setting the current palette for a scene.
+        Address format: /scene/{scene_ID}/set_palette
         
         Args:
             address: OSC address pattern
@@ -286,6 +340,7 @@ class OSCHandler:
     def scene_update_palettes_callback(self, address, *args):
         """
         Handle OSC messages for updating all palettes in a scene.
+        Address format: /scene/{scene_ID}/update_palettes
         
         Args:
             address: OSC address pattern
@@ -320,6 +375,7 @@ class OSCHandler:
     def scene_save_effects_callback(self, address, *args):
         """
         Handle OSC messages for saving effects to a JSON file.
+        Address format: /scene/{scene_ID}/save_effects
         
         Args:
             address: OSC address pattern
@@ -350,6 +406,7 @@ class OSCHandler:
     def scene_load_effects_callback(self, address, *args):
         """
         Handle OSC messages for loading effects from a JSON file.
+        Address format: /scene/{scene_ID}/load_effects
         
         Args:
             address: OSC address pattern
@@ -379,6 +436,7 @@ class OSCHandler:
     def scene_save_palettes_callback(self, address, *args):
         """
         Handle OSC messages for saving palettes to a JSON file.
+        Address format: /scene/{scene_ID}/save_palettes
         
         Args:
             address: OSC address pattern
@@ -409,6 +467,7 @@ class OSCHandler:
     def scene_load_palettes_callback(self, address, *args):
         """
         Handle OSC messages for loading palettes from a JSON file.
+        Address format: /scene/{scene_ID}/load_palettes
         
         Args:
             address: OSC address pattern
@@ -443,6 +502,7 @@ class OSCHandler:
         """
         Handle legacy OSC messages for backward compatibility.
         Maps to new scene-based structure internally.
+        Address format: /effect/{effect_ID}/segment/{segment_ID}/{param_name}
         
         Args:
             address: OSC address pattern
@@ -504,6 +564,7 @@ class OSCHandler:
         """
         Handle legacy OSC messages with 'object' instead of 'segment'.
         Maps to new scene-based structure internally.
+        Address format: /effect/{effect_ID}/object/{object_ID}/{param_name}
         
         Args:
             address: OSC address pattern
@@ -565,6 +626,7 @@ class OSCHandler:
         """
         Handle legacy OSC messages for updating palettes.
         Maps to new scene-based structure internally.
+        Address format: /palette/{palette_ID}
         
         Args:
             address: OSC address pattern
@@ -580,10 +642,11 @@ class OSCHandler:
         palette_id = match.group(1)
         colors_flat = args[0]
         
-        if not isinstance(colors_flat, list) or len(colors_flat) % 3 != 0:
+        if not isinstance(colors_flat, (list, tuple)) or len(colors_flat) % 3 != 0:
             print(f"Invalid color data for palette {palette_id}: {colors_flat}")
             return
         
+
         colors = []
         for i in range(0, len(colors_flat), 3):
             r = max(0, min(255, int(colors_flat[i])))
@@ -604,6 +667,7 @@ class OSCHandler:
         """
         Handle initialization request from clients.
         Sends current configuration to the client.
+        Address format: /request/init
         
         Args:
             address: OSC address pattern
@@ -636,7 +700,6 @@ class OSCHandler:
                         }
                     )
                     
-
                     self.client.send_message(
                         f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/position",
                         {
@@ -647,7 +710,6 @@ class OSCHandler:
                         }
                     )
                     
-
                     self.client.send_message(
                         f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/span",
                         {
@@ -660,7 +722,6 @@ class OSCHandler:
                         }
                     )
                     
-
                     self.client.send_message(
                         f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/transparency", 
                         segment.transparency
@@ -699,9 +760,11 @@ class OSCHandler:
         if not self.simulator:
             return
 
+
         if hasattr(self.simulator, 'ui_dirty'):
             self.simulator.ui_dirty = True
             
+
         if hasattr(self.simulator, 'active_scene_id') and scene_id is not None:
             self.simulator.active_scene_id = scene_id
             
