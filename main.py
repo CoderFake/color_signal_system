@@ -42,6 +42,7 @@ def create_default_segments(effect: LightEffect, count: int = 3):
             dimmer_time=DEFAULT_DIMMER_TIME
         )
         
+
         segment.gradient = False
         segment.fade = False
         segment.gradient_colors = [0, -1, -1]
@@ -58,7 +59,7 @@ def create_default_effects(scene: LightScene, num_effects: int = 8):
     """
     for effect_id in range(1, num_effects + 1): 
         effect = LightEffect(effect_ID=effect_id, led_count=DEFAULT_LED_COUNT, fps=DEFAULT_FPS)
-        create_default_segments(effect, count=3)
+        create_default_segments(effect, count=8)
         scene.add_effect(effect_id, effect)
 
 def parse_arguments():
@@ -124,11 +125,13 @@ def main():
             if not args.simulator_only and osc_handler:
                 osc_handler.set_simulator(simulator)
             
+
             simulator.run()
         else:
             print("Running in headless mode (no GUI)...")
             print("Press Ctrl+C to exit")
             
+
             while True:
                 for scene in light_scenes.values():
                     scene.update()

@@ -3,6 +3,7 @@ import json
 import sys
 sys.path.append('..')
 from models.light_effect import LightEffect
+from models.light_segment import LightSegment
 from config import DEFAULT_COLOR_PALETTES
 
 class LightScene:
@@ -84,6 +85,23 @@ class LightScene:
             if palette_id == self.current_palette:
                 self.set_palette(palette_id)
     
+    def update_all_palettes(self, new_palettes: Dict[str, List[List[int]]]):
+        """
+        Update all palettes at once.
+        
+        Args:
+            new_palettes: Dictionary of palette_id -> color list
+        """
+        self.palettes = new_palettes.copy()
+        
+
+        if self.current_palette in self.palettes:
+            self.set_palette(self.current_palette)
+        elif self.palettes:
+
+            self.current_palette = next(iter(self.palettes.keys()))
+            self.set_palette(self.current_palette)
+    
     def switch_effect(self, effect_ID: int):
         """
         Switch to a different LightEffect.
@@ -101,7 +119,7 @@ class LightScene:
         if self.current_effect_ID is not None and self.current_effect_ID in self.effects:
             self.effects[self.current_effect_ID].update_all()
     
-    def get_led_output(self):
+    def get_led_output(self) -> List[List[int]]:
         """
         Get the LED output from the current effect.
         
@@ -128,38 +146,8 @@ class LightScene:
         }
         
         for effect_id, effect in self.effects.items():
-            effect_data = {
-                "effect_ID": effect.effect_ID,
-                "led_count": effect.led_count,
-                "fps": effect.fps,
-                "time": effect.time,
-                "current_palette": effect.current_palette,
-                "segments": {}
-            }
-            
-            for segment_id, segment in effect.segments.items():
-                effect_data["segments"][segment_id] = {
-                    "segment_ID": segment.segment_ID,
-                    "color": segment.color,
-                    "transparency": segment.transparency,
-                    "length": segment.length,
-                    "move_speed": segment.move_speed,
-                    "move_range": segment.move_range,
-                    "initial_position": segment.initial_position,
-                    "current_position": segment.current_position,
-                    "is_edge_reflect": segment.is_edge_reflect,
-                    "dimmer_time": segment.dimmer_time
-                }
-                
-
-                if hasattr(segment, "gradient"):
-                    effect_data["segments"][segment_id]["gradient"] = segment.gradient
-                if hasattr(segment, "fade"):
-                    effect_data["segments"][segment_id]["fade"] = segment.fade
-                if hasattr(segment, "gradient_colors"):
-                    effect_data["segments"][segment_id]["gradient_colors"] = segment.gradient_colors
-            
-            data["effects"][effect_id] = effect_data
+            effect_data = effect.to_dict()
+            data["effects"][str(effect_id)] = effect_data
         
         with open(file_path, 'w') as f:
             json.dump(data, f, indent=4)
@@ -175,61 +163,22 @@ class LightScene:
         Returns:
             A new LightScene instance with the loaded configuration
         """
-        from models.light_segment import LightSegment
-        
         with open(file_path, 'r') as f:
             data = json.load(f)
         
         scene = cls(scene_ID=data["scene_ID"])
-        scene.current_palette = data.get("current_palette", "A")
         
+
         if "palettes" in data:
             scene.palettes = data["palettes"]
         
+        if "current_palette" in data:
+            scene.current_palette = data["current_palette"]
+        
+
         for effect_id_str, effect_data in data["effects"].items():
             effect_id = int(effect_id_str)
-            
-            effect = LightEffect(
-                effect_ID=effect_data["effect_ID"],
-                led_count=effect_data["led_count"],
-                fps=effect_data["fps"]
-            )
-            
-            if "time" in effect_data:
-                effect.time = effect_data["time"]
-                
-            if "current_palette" in effect_data:
-                effect.current_palette = effect_data["current_palette"]
-            
-            for segment_id_str, segment_data in effect_data["segments"].items():
-                segment_id = int(segment_id_str)
-                
-                segment = LightSegment(
-                    segment_ID=segment_data["segment_ID"],
-                    color=segment_data["color"],
-                    transparency=segment_data["transparency"],
-                    length=segment_data["length"],
-                    move_speed=segment_data["move_speed"],
-                    move_range=segment_data["move_range"],
-                    initial_position=segment_data["initial_position"],
-                    is_edge_reflect=segment_data["is_edge_reflect"],
-                    dimmer_time=segment_data["dimmer_time"]
-                )
-                
-
-                if "current_position" in segment_data:
-                    segment.current_position = segment_data["current_position"]
-                
-
-                if "gradient" in segment_data:
-                    segment.gradient = segment_data["gradient"]
-                if "fade" in segment_data:
-                    segment.fade = segment_data["fade"]
-                if "gradient_colors" in segment_data:
-                    segment.gradient_colors = segment_data["gradient_colors"]
-                
-                effect.add_segment(segment_id, segment)
-            
+            effect = LightEffect.from_dict(effect_data)
             scene.add_effect(effect_id, effect)
         
 

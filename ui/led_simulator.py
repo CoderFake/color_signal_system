@@ -1363,4 +1363,4 @@ class LEDSimulator:
             segment.rgb_color = segment.calculate_rgb(scene.current_palette)
             self.ui_dirty = True
     
-    def _cycle_gradient_color(self, color 
+    def _cycle_gradient_color(self, color

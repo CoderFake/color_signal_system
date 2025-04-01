@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Optional
 import json
 import sys
 sys.path.append('..')
@@ -27,14 +27,15 @@ class LightEffect:
         self.time = 0.0
         self.current_palette = "A"
         
-    def set_palette(self, palette: str):
+    def set_palette(self, palette_id: str):
         """
         Set the current palette for this effect.
         
         Args:
-            palette: Palette ID to use
+            palette_id: ID of the palette to use
         """
-        self.current_palette = palette
+        self.current_palette = palette_id
+        
 
         for segment in self.segments.values():
             segment.rgb_color = segment.calculate_rgb(self.current_palette)
@@ -79,6 +80,7 @@ class LightEffect:
         
 
         for segment in self.segments.values():
+            segment.time = self.time
             segment.update_position(self.fps)
     
     def get_led_output(self) -> List[List[int]]:
@@ -90,13 +92,13 @@ class LightEffect:
         """
         led_colors = [[0, 0, 0] for _ in range(self.led_count)]
         led_transparency = [1.0 for _ in range(self.led_count)]
-
+        
 
         sorted_segments = sorted(self.segments.items(), key=lambda x: x[0])
         
         for segment_id, segment in sorted_segments:
-            segment_data = segment.get_light_data(self.current_palette, self.time)
-
+            segment_data = segment.get_light_data(self.current_palette)
+            
 
             if segment_data['brightness'] <= 0:
                 continue
@@ -104,41 +106,40 @@ class LightEffect:
             positions = segment_data['positions']
             colors = segment_data['colors']
             transparency = segment_data['transparency']
-            brightness = segment_data['brightness']
             
 
             start_pos = max(0, int(positions[0]))
             end_pos = min(self.led_count - 1, int(positions[3]))
             
-
             for led_idx in range(start_pos, end_pos + 1):
                 if led_idx < 0 or led_idx >= self.led_count:
                     continue
 
 
                 if led_idx <= positions[1]:
+
                     rel_pos = (led_idx - positions[0]) / max(1, positions[1] - positions[0])
                     trans_idx = 0
                     color1 = colors[0]
                     color2 = colors[1]
                     
                 elif led_idx <= positions[2]:
+
                     rel_pos = (led_idx - positions[1]) / max(1, positions[2] - positions[1])
                     trans_idx = 1
                     color1 = colors[1]
                     color2 = colors[2]
                     
                 else:
+
                     rel_pos = (led_idx - positions[2]) / max(1, positions[3] - positions[2])
                     trans_idx = 2
                     color1 = colors[2]
                     color2 = colors[3]
 
+
                 from utils.color_utils import interpolate_colors
                 led_color = interpolate_colors(color1, color2, rel_pos)
-                
-
-                led_color = apply_brightness(led_color, brightness)
                 
 
                 current_transparency = transparency[trans_idx]
@@ -152,11 +153,16 @@ class LightEffect:
 
                     weight_current = led_transparency[led_idx]
                     weight_new = current_transparency * (1.0 - led_transparency[led_idx])
-
-                    led_colors[led_idx] = blend_colors(
-                        [led_colors[led_idx], led_color],
-                        [weight_current, weight_new]
-                    )
+                    total_weight = weight_current + weight_new
+                    
+                    if total_weight > 0:
+                        weight_current /= total_weight
+                        weight_new /= total_weight
+                        
+                        led_colors[led_idx] = blend_colors(
+                            [led_colors[led_idx], led_color],
+                            [weight_current, weight_new]
+                        )
 
 
                     led_transparency[led_idx] = max(0.0, min(1.0, 
