@@ -8,6 +8,7 @@ from utils.color_utils import interpolate_colors, apply_brightness
 class LightSegment:
     """
     LightSegment represents a segment of light with specific properties like color, position, and movement.
+    This class follows the specification from the LED tape light signal processing system.
     """
 
     def __init__(self, segment_ID: int, color: List[int], transparency: List[float], 
@@ -18,14 +19,14 @@ class LightSegment:
         
         Args:
             segment_ID: Unique identifier for this segment
-            color: List of color indices from the palette
-            transparency: Transparency values for each color point
-            length: Lengths of each segment section
-            move_speed: Speed of movement in LED particles per second
+            color: List of color indices from the palette (4 elements: left to right)
+            transparency: Transparency values for each color point (0.0~1.0)
+            length: Lengths of each segment section (3 elements)
+            move_speed: Speed of movement in LED particles per second (Positive: right, Negative: left)
             move_range: Range of movement [left_edge, right_edge]
             initial_position: Initial position of the segment
-            is_edge_reflect: Whether to reflect at edges or wrap around
-            dimmer_time: Fade timing parameters [fade_in_start, fade_in_end, fade_out_start, fade_out_end, cycle_time]
+            is_edge_reflect: Whether to reflect at edges (True) or wrap around (False)
+            dimmer_time: Fade timing parameters [fade_in_start, fade_in_end, fade_out_start, fade_out_end, cycle_length]
         """
         self.segment_ID = segment_ID
         self.color = color
@@ -40,9 +41,10 @@ class LightSegment:
         self.time = 0.0
         
 
+
         self.gradient = False
         self.fade = False
-        self.gradient_colors = [0, -1, -1]  # [enabled, left_color, right_color]
+        self.gradient_colors = [0, -1, -1]
 
         self.rgb_color = self.calculate_rgb()
         self.total_length = sum(self.length)
@@ -79,16 +81,20 @@ class LightSegment:
     def update_position(self, fps: int):
         """
         Update the position of the segment based on move_speed and fps.
+        Based on the move_speed, only specified LED particles are moved in 1 second.
         
         Args:
             fps: Frames per second
         """
         dt = 1.0 / fps
+        self.time += dt
         
         delta = self.move_speed * dt
         self.current_position += delta
         
+
         if self.is_edge_reflect:
+
             if self.current_position < self.move_range[0]:
                 self.current_position = 2 * self.move_range[0] - self.current_position
                 self.move_speed *= -1
@@ -96,6 +102,7 @@ class LightSegment:
                 self.current_position = 2 * self.move_range[1] - self.current_position
                 self.move_speed *= -1
         else:
+
             if self.current_position < self.move_range[0]:
                 self.current_position = self.move_range[1] - (self.move_range[0] - self.current_position)
             elif self.current_position > self.move_range[1]:
@@ -109,7 +116,7 @@ class LightSegment:
             palette_name: Name of the palette to use
             
         Returns:
-            List of RGB values corresponding to each color index
+            List of RGB values corresponding to each color index in format [[r0, g0, b0], ..., [r3, g3, b3]]
         """
         palette = DEFAULT_COLOR_PALETTES.get(palette_name, DEFAULT_COLOR_PALETTES["A"])
         
@@ -119,7 +126,7 @@ class LightSegment:
                 if isinstance(color_idx, int) and 0 <= color_idx < len(palette):
                     rgb_values.append(palette[color_idx])
                 else:
-                    rgb_values.append([255, 0, 0])  # Default to red if out of range
+                    rgb_values.append([255, 0, 0])
             except Exception as e:
                 print(f"Error getting color {color_idx} from palette: {e}")
                 rgb_values.append([255, 0, 0])
@@ -136,15 +143,16 @@ class LightSegment:
     def apply_dimming(self) -> float:
         """
         Apply fade effect based on dimmer_time parameters.
+        Implements the fade in/out functionality as specified in the requirements.
         
         Returns:
             Brightness level from 0.0 to 1.0
         """
         if not self.fade or not self.dimmer_time or len(self.dimmer_time) < 5 or self.dimmer_time[4] <= 0:
-            return 1.0  # No dimming if fade is off or dimmer_time is invalid
+            return 1.0 
             
         cycle_time = self.dimmer_time[4]
-        current_time = int((self.time * 1000) % cycle_time) if hasattr(self, 'time') else 0
+        current_time = int((self.time * 1000) % cycle_time)
         fade_in_start = self.dimmer_time[0]
         fade_in_end = self.dimmer_time[1]
         fade_out_start = self.dimmer_time[2]
@@ -155,18 +163,19 @@ class LightSegment:
             return 0.0
         elif current_time < fade_in_end:
             progress = (current_time - fade_in_start) / max(1, fade_in_end - fade_in_start)
-            return progress * progress  # Quadratic easing in
+            return progress
         elif current_time < fade_out_start:
-            return 1.0
+            return 1.0 
         elif current_time < fade_out_end:
             progress = (current_time - fade_out_start) / max(1, fade_out_end - fade_out_start)
-            return 1.0 - (progress * progress)  # Quadratic easing out
+            return 1.0 - progress 
         else:
             return 0.0
 
     def get_light_data(self, palette_name: str = "A") -> dict:
         """
         Get data for light rendering based on current segment state.
+        Considers position, color, transparency, and applies gradients and fading if enabled.
         
         Args:
             palette_name: Name of the palette to use
@@ -207,6 +216,7 @@ class LightSegment:
         if brightness < 1.0:
             colors = [apply_brightness(color, brightness) for color in colors]
         
+
         light_data = {
             'segment_id': self.segment_ID,
             'brightness': brightness,
@@ -219,7 +229,7 @@ class LightSegment:
         
     def to_dict(self) -> Dict:
         """
-        Convert the segment to a dictionary representation.
+        Convert the segment to a dictionary representation for serialization.
         
         Returns:
             Dictionary containing segment properties
@@ -245,7 +255,7 @@ class LightSegment:
     @classmethod
     def from_dict(cls, data: Dict):
         """
-        Create a segment from a dictionary representation.
+        Create a segment from a dictionary representation (deserialization).
         
         Args:
             data: Dictionary containing segment properties
@@ -264,11 +274,10 @@ class LightSegment:
             is_edge_reflect=data["is_edge_reflect"],
             dimmer_time=data["dimmer_time"]
         )
-        
 
         if "current_position" in data:
-            segment.current_position = data["current_position"]
-            
+            segment.current_position = data["current_position"] 
+
         if "gradient" in data:
             segment.gradient = data["gradient"]
         if "fade" in data:

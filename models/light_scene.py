@@ -9,7 +9,9 @@ from config import DEFAULT_COLOR_PALETTES
 class LightScene:
     """
     LightScene manages multiple LightEffect instances and shares color palettes among them.
-    It provides functionality for switching between effects and updating palette settings.
+    
+    Note: This class is an extension to the base specification which only defines LightSegment
+    and LightEffect. It provides higher-level management for multiple effects and color palettes.
     """
     
     def __init__(self, scene_ID: int):
@@ -23,7 +25,7 @@ class LightScene:
         self.effects: Dict[int, LightEffect] = {}
         self.current_effect_ID = None
         self.palettes = DEFAULT_COLOR_PALETTES.copy()
-        self.current_palette = "A"  # Default palette
+        self.current_palette = "A"
     
     def add_effect(self, effect_ID: int, effect: LightEffect):
         """
@@ -48,7 +50,6 @@ class LightScene:
         """
         if effect_ID in self.effects:
             del self.effects[effect_ID]
-            
 
             if effect_ID == self.current_effect_ID:
                 if self.effects:
@@ -66,7 +67,6 @@ class LightScene:
         if palette_id in self.palettes:
             self.current_palette = palette_id
 
-
             for effect in self.effects.values():
                 effect.set_palette(palette_id)
     
@@ -81,7 +81,6 @@ class LightScene:
         if palette_id in self.palettes:
             self.palettes[palette_id] = colors
 
-
             if palette_id == self.current_palette:
                 self.set_palette(palette_id)
     
@@ -94,7 +93,6 @@ class LightScene:
         """
         self.palettes = new_palettes.copy()
         
-
         if self.current_palette in self.palettes:
             self.set_palette(self.current_palette)
         elif self.palettes:
@@ -115,6 +113,7 @@ class LightScene:
     def update(self):
         """
         Update the current LightEffect.
+        Delegates to the active effect's update_all method.
         """
         if self.current_effect_ID is not None and self.current_effect_ID in self.effects:
             self.effects[self.current_effect_ID].update_all()
@@ -168,20 +167,17 @@ class LightScene:
         
         scene = cls(scene_ID=data["scene_ID"])
         
-
         if "palettes" in data:
             scene.palettes = data["palettes"]
         
         if "current_palette" in data:
             scene.current_palette = data["current_palette"]
-        
 
         for effect_id_str, effect_data in data["effects"].items():
             effect_id = int(effect_id_str)
             effect = LightEffect.from_dict(effect_data)
             scene.add_effect(effect_id, effect)
         
-
         if "current_effect_ID" in data and data["current_effect_ID"] is not None:
             scene.current_effect_ID = data["current_effect_ID"]
             
