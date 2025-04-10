@@ -1,3 +1,8 @@
+"""
+Utility functions for color manipulation and processing.
+These functions handle color interpolation, blending, transparency, and brightness adjustments.
+"""
+
 from typing import List, Tuple, Dict, Any
 
 def interpolate_colors(color1: List[int], color2: List[int], factor: float) -> List[int]:

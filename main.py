@@ -36,13 +36,12 @@ def create_default_segments(effect: LightEffect, count: int = 3):
             transparency=DEFAULT_TRANSPARENCY,
             length=DEFAULT_LENGTH,
             move_speed=DEFAULT_MOVE_SPEED * (1 if i % 2 == 0 else -1),  
-            move_range=[0, effect.led_count - 1], 
+            move_range=DEFAULT_MOVE_RANGE, 
             initial_position=center_position - 30 + i * 30,
             is_edge_reflect=DEFAULT_IS_EDGE_REFLECT,
             dimmer_time=DEFAULT_DIMMER_TIME
         )
         
-
         segment.gradient = False
         segment.fade = False
         segment.gradient_colors = [0, -1, -1]
@@ -88,10 +87,8 @@ def main():
     print("Initializing Color Signal Generation System...")
     print(f"FPS: {args.fps}, LED Count: {args.led_count}, OSC: {args.osc_ip}:{args.osc_port}")
     
-
     light_scenes = {}
     
-
     if args.config_file and os.path.exists(args.config_file):
         try:
             scene = LightScene.load_from_json(args.config_file)
@@ -104,12 +101,10 @@ def main():
             create_default_effects(scene)
             light_scenes[scene.scene_ID] = scene
     else:
-
         scene = LightScene(scene_ID=1)
         create_default_effects(scene)
         light_scenes[scene.scene_ID] = scene
     
-
     osc_handler = None
     if not args.simulator_only:
         osc_handler = OSCHandler(light_scenes, ip=args.osc_ip, port=args.osc_port)
@@ -125,13 +120,11 @@ def main():
             if not args.simulator_only and osc_handler:
                 osc_handler.set_simulator(simulator)
             
-
             simulator.run()
         else:
             print("Running in headless mode (no GUI)...")
             print("Press Ctrl+C to exit")
             
-
             while True:
                 for scene in light_scenes.values():
                     scene.update()

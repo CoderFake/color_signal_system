@@ -1,9 +1,15 @@
+"""
+Configuration settings for the Color Signal Generation System.
+Contains default values for LED parameters, UI settings, and color palettes.
+"""
+
+# OSC Communication Settings
 DEFAULT_FPS = 60
 DEFAULT_LED_COUNT = 225
-DEFAULT_OSC_PORT = 9090  # Đặt theo port của app iOS
-DEFAULT_OSC_IP = "0.0.0.0"  # Lắng nghe trên tất cả interfaces
+DEFAULT_OSC_PORT = 9090
+DEFAULT_OSC_IP = "0.0.0.0"  # Listen on all interfaces
 
-
+# Color Palettes
 DEFAULT_COLOR_PALETTES = {
     "A": [
         [255, 0, 0],    # Red
@@ -47,7 +53,7 @@ DEFAULT_COLOR_PALETTES = {
     ]
 }
 
-
+# UI Settings
 UI_WIDTH = 1200
 UI_HEIGHT = 800
 UI_BACKGROUND_COLOR = (30, 30, 30)
@@ -55,7 +61,7 @@ UI_TEXT_COLOR = (220, 220, 220)
 UI_ACCENT_COLOR = (50, 120, 220)
 UI_BUTTON_COLOR = (60, 60, 60)
 
-
+# Default Light Segment Settings
 DEFAULT_TRANSPARENCY = [1.0, 1.0, 1.0, 1.0]
 DEFAULT_LENGTH = [10, 10, 10]
 DEFAULT_MOVE_SPEED = 10.0

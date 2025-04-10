@@ -44,7 +44,6 @@ class OSCHandler:
         """
         Set up the OSC message dispatcher with appropriate message handlers.
         """
-
         self.dispatcher.map("/scene/*/effect/*/segment/*/*", self.scene_effect_segment_callback)
         self.dispatcher.map("/scene/*/effect/*/set_palette", self.scene_effect_palette_callback)
         self.dispatcher.map("/scene/*/set_palette", self.scene_palette_callback)
@@ -54,7 +53,6 @@ class OSCHandler:
         self.dispatcher.map("/scene/*/save_palettes", self.scene_save_palettes_callback)
         self.dispatcher.map("/scene/*/load_palettes", self.scene_load_palettes_callback)
         
-
         self.dispatcher.map("/effect/*/segment/*/*", self.legacy_effect_segment_callback)
         self.dispatcher.map("/effect/*/object/*/*", self.legacy_effect_object_callback)
         self.dispatcher.map("/palette/*", self.legacy_palette_callback)
@@ -171,7 +169,6 @@ class OSCHandler:
                     ui_updated = True
                     
                 if "interval" in value:
-
                     segment.update_param("position_interval", value["interval"])
                     print(f"Updated interval: {value['interval']}")
                     ui_updated = True
@@ -179,7 +176,6 @@ class OSCHandler:
         elif param_name == "span":
             if isinstance(value, dict):
                 if "span" in value:
-
                     new_length = [value["span"]//3, value["span"]//3, value["span"]//3]
                     segment.update_param("length", new_length)
                     print(f"Updated span length: {new_length}")
@@ -228,7 +224,6 @@ class OSCHandler:
             ui_updated = True
 
         else:
-
             segment.update_param(param_name, value)
             print(f"Updated {param_name}: {value}")
             ui_updated = True
@@ -477,23 +472,19 @@ class OSCHandler:
         param_name = match.group(3)
         value = args[0]
         
-
         scene_id = 1
         
         if scene_id not in self.light_scenes:
-
             self.light_scenes[scene_id] = LightScene(scene_ID=scene_id)
         
         scene = self.light_scenes[scene_id]
         
         if effect_id not in scene.effects:
-
             scene.add_effect(effect_id, LightEffect(effect_ID=effect_id, led_count=DEFAULT_LED_COUNT, fps=DEFAULT_FPS))
         
         effect = scene.effects[effect_id]
         
         if segment_id not in effect.segments:
-
             new_segment = LightSegment(
                 segment_ID=segment_id,
                 color=[0, 1, 2, 3],
@@ -507,7 +498,6 @@ class OSCHandler:
             )
             effect.add_segment(segment_id, new_segment)
         
-
         new_address = f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/{param_name}"
         self.scene_effect_segment_callback(new_address, *args)
     
@@ -532,23 +522,19 @@ class OSCHandler:
         param_name = match.group(3)
         value = args[0]
         
-
         scene_id = 1
         
         if scene_id not in self.light_scenes:
-
             self.light_scenes[scene_id] = LightScene(scene_ID=scene_id)
         
         scene = self.light_scenes[scene_id]
         
         if effect_id not in scene.effects:
-
             scene.add_effect(effect_id, LightEffect(effect_ID=effect_id, led_count=DEFAULT_LED_COUNT, fps=DEFAULT_FPS))
         
         effect = scene.effects[effect_id]
         
         if object_id not in effect.segments:
-
             new_segment = LightSegment(
                 segment_ID=object_id,
                 color=[0, 1, 2, 3],  
@@ -562,7 +548,6 @@ class OSCHandler:
             )
             effect.add_segment(object_id, new_segment)
         
-
         new_address = f"/scene/{scene_id}/effect/{effect_id}/segment/{object_id}/{param_name}"
         self.scene_effect_segment_callback(new_address, *args)
     
@@ -589,7 +574,6 @@ class OSCHandler:
             print(f"Invalid color data for palette {palette_id}: {colors_flat}")
             return
         
-
         colors = []
         for i in range(0, len(colors_flat), 3):
             r = max(0, min(255, int(colors_flat[i])))
@@ -597,7 +581,6 @@ class OSCHandler:
             b = max(0, min(255, int(colors_flat[i+2])))
             colors.append([r, g, b])
         
-
         for scene_id, scene in self.light_scenes.items():
             scene.update_palette(palette_id, colors)
             
@@ -620,19 +603,15 @@ class OSCHandler:
             
         print("Received initialization request")
         
-
         for scene_id, scene in self.light_scenes.items():
-
             for palette_id, colors in scene.palettes.items():
                 flat_colors = []
                 for color in colors:
                     flat_colors.extend(color)
                 self.client.send_message(f"/palette/{palette_id}", flat_colors)
             
-
             for effect_id, effect in scene.effects.items():
                 for segment_id, segment in effect.segments.items():
-
                     self.client.send_message(
                         f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/color", 
                         {
@@ -642,7 +621,6 @@ class OSCHandler:
                         }
                     )
                     
-
                     self.client.send_message(
                         f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/position",
                         {
@@ -653,7 +631,6 @@ class OSCHandler:
                         }
                     )
                     
-
                     self.client.send_message(
                         f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/span",
                         {
@@ -666,25 +643,21 @@ class OSCHandler:
                         }
                     )
                     
-
                     self.client.send_message(
                         f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/transparency", 
                         segment.transparency
                     )
                     
-
                     self.client.send_message(
                         f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/is_edge_reflect", 
                         1 if segment.is_edge_reflect else 0
                     )
                     
-
                     self.client.send_message(
                         f"/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/dimmer_time",
                         segment.dimmer_time
                     )
                     
-
                     self.client.send_message(
                         f"/effect/{effect_id}/segment/{segment_id}/color", 
                         {
@@ -703,7 +676,6 @@ class OSCHandler:
                         }
                     )
                     
-
                     self.client.send_message(
                         f"/effect/{effect_id}/object/{segment_id}/position/initial_position", 
                         segment.initial_position

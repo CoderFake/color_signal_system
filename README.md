@@ -1,103 +1,120 @@
-# Hệ thống Tạo Tín hiệu Màu LED (LED Color Signal Generator)
+# Color Signal Generation System
 
-Đây là ứng dụng mô phỏng và điều khiển dải đèn LED, cho phép tạo các hiệu ứng ánh sáng phức tạp với khả năng tùy chỉnh cao.
+A comprehensive system for generating, visualizing, and controlling LED color signals with real-time manipulation capabilities.
 
-## Tính năng chính
+## Overview
 
-- **Mô phỏng dải đèn LED** với hỗ trợ nhiều hiệu ứng khác nhau
-- **Giao diện responsive** với khả năng ẩn hiện bảng điều khiển giống macOS Dock
-- **Hỗ trợ hiệu ứng Dock** với animation thu phóng khi di chuyển chuột
-- **Điều khiển qua OSC** (Open Sound Control)
-- **Chế độ ẩn hiện tự động** các bảng điều khiển
-- **Hỗ trợ nhiều đoạn ánh sáng** trên cùng một dải đèn LED
-- **Hiệu ứng fade-in/fade-out** với thời gian tùy chỉnh
-- **Hiệu ứng phản xạ cạnh** hoặc quấn vòng
+The Color Signal Generation System is designed for creating dynamic light effects for LED installations. It provides a flexible framework for defining light segments with various properties such as color, position, movement, and effects. The system includes a visual simulator for previewing effects and supports OSC (Open Sound Control) for integration with external controllers.
 
-## Cài đặt
+## Features
 
-1. Clone repository:
-```bash
-git clone https://github.com/coderfake/color_signal_system.git
-cd color_signal_system
+- **Dynamic Light Effects**: Create complex light patterns with multiple segments
+- **Real-time Control**: Adjust parameters on-the-fly with immediate visual feedback
+- **OSC Integration**: Control the system remotely via OSC protocol
+- **Visual Simulator**: Preview light effects in a responsive GUI
+- **Multiple Color Palettes**: Switch between different color schemes
+- **Gradient and Fade Effects**: Apply gradient colors and fading effects to segments
+- **Responsive UI**: Interface adapts to different screen sizes and zoom levels
+
+## System Architecture
+
+The system is organized into several components:
+
+- **Models**: Core data structures for light segments, effects, and scenes
+- **Controllers**: Handlers for OSC communication
+- **UI**: Visual simulator for previewing and controlling effects
+- **Utils**: Utility functions for color manipulation
+
+### Key Components
+
+- **LightSegment**: Represents a segment of light with properties like color, position, and movement
+- **LightEffect**: Manages multiple segments to create a complete lighting effect
+- **LightScene**: Organizes multiple effects and manages color palettes
+- **OSCHandler**: Handles OSC communication for remote control
+- **LEDSimulator**: Provides a visual interface for previewing and controlling effects
+
+## Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+## Usage
+
+### Basic Usage
+
+Run the system with default settings:
+
 ```
-
-2. Cài đặt các thư viện cần thiết:
-```bash
-pip install -r requirements.txt
-```
-
-3. Chạy ứng dụng:
-```bash
 python main.py
 ```
 
-## Hướng dẫn sử dụng
+### Command Line Options
 
-### Giao diện
+- `--fps`: Set frames per second (default: 60)
+- `--led-count`: Set number of LEDs (default: 225)
+- `--osc-ip`: Set OSC IP address (default: 0.0.0.0)
+- `--osc-port`: Set OSC port (default: 9090)
+- `--no-gui`: Run without GUI (headless mode)
+- `--simulator-only`: Run only the simulator without OSC
+- `--config-file`: Load configuration from a JSON file
 
-- **Bảng điều khiển trên**: Chứa các điều khiển toàn cục (phát/tạm dừng, FPS, chọn hiệu ứng)
-- **Bảng điều khiển phải**: Chứa các điều khiển chi tiết (màu sắc, vị trí, kích thước, tốc độ)
-- **Khu vực trung tâm**: Hiển thị mô phỏng dải đèn LED
+Example:
+```
+python main.py --fps 30 --led-count 300 --osc-port 8000
+```
 
-### Các tính năng đặc biệt
+### GUI Controls
 
-- **Thu phóng**: Sử dụng con lăn chuột hoặc nút +/- trên bảng điều khiển
-- **Di chuyển**: Kéo và thả để di chuyển vùng hiển thị
-- **Ẩn/hiện bảng điều khiển**: 
-  - Di chuyển chuột tới viền để hiện bảng điều khiển
-  - Hoặc nhấp vào nút mũi tên ở viền
-  - Bảng điều khiển tự động ẩn sau một khoảng thời gian không có tương tác
+The simulator interface provides controls for:
 
-### Tùy chỉnh đoạn ánh sáng (Segment)
+- Selecting and switching between effects and segments
+- Adjusting segment properties (position, speed, color, etc.)
+- Changing color palettes
+- Zooming and panning the LED view
+- Toggling animation playback
 
-1. Chọn Effect ID và Segment ID từ bảng điều khiển
-2. Tùy chỉnh các thuộc tính:
-   - **Colors**: Màu sắc các điểm (chọn từ bảng màu)
-   - **Move Speed**: Tốc độ di chuyển (dương: phải, âm: trái)
-   - **Position**: Vị trí trên dải đèn
-   - **Range**: Phạm vi di chuyển
-   - **Edge Reflection**: Phản xạ tại cạnh hoặc quấn vòng
-   - **Dimmer Time**: Thời gian và chuyển tiếp fade in/out
+### OSC Control
 
-## Giao thức OSC
+The system can be controlled remotely via OSC messages. The OSC address patterns follow this structure:
 
-Ứng dụng hỗ trợ giao thức OSC để điều khiển từ xa với các định dạng tin nhắn sau:
+- `/scene/{scene_id}/effect/{effect_id}/segment/{segment_id}/{parameter}`: Control segment parameters
+- `/scene/{scene_id}/effect/{effect_id}/set_palette`: Set palette for an effect
+- `/scene/{scene_id}/set_palette`: Set palette for a scene
+- `/scene/{scene_id}/update_palettes`: Update all palettes in a scene
 
-- `/effect/{effect_ID}/segment/{segment_ID}/{param_name} {value}`
-- `/palette/{palette_ID} {colors}`
-- `/request/init request`
+## Configuration
 
-## Cấu trúc mã nguồn
+The system's default settings are defined in `config.py`, including:
 
-- `main.py`: Điểm vào chính của ứng dụng
-- `config.py`: Cấu hình và hằng số hệ thống
-- `models/`: Chứa các lớp mô hình dữ liệu
-- `controllers/`: Chứa các lớp xử lý điều khiển
-- `ui/`: Chứa giao diện người dùng
-- `utils/`: Chứa các tiện ích
+- Default FPS and LED count
+- OSC communication settings
+- Color palettes
+- UI settings
+- Default segment properties
 
-## Yêu cầu hệ thống
+## Development
 
-- Python 3.7+
-- pygame
-- pygame_gui
-- python-osc
-- numpy
+### Adding New Features
 
-## Phát triển
+To extend the system with new features:
 
-### Thêm hiệu ứng mới
+1. For new segment properties, update the `LightSegment` class
+2. For new effects, implement them in the `LightEffect` class
+3. For UI changes, modify the `LEDSimulator` class
+4. For new OSC commands, update the `OSCHandler` class
 
-1. Tạo một lớp con kế thừa từ `LightEffect`
-2. Triển khai phương thức `update_all()` và `get_led_output()`
-3. Đăng ký hiệu ứng trong `main.py`
+### Code Structure
 
-### Tùy chỉnh giao diện
+- `main.py`: Entry point and application initialization
+- `config.py`: Configuration settings
+- `models/`: Core data structures
+- `controllers/`: Communication handlers
+- `ui/`: User interface components
+- `utils/`: Utility functions
 
-Giao diện sử dụng `pygame_gui` và có thể tùy chỉnh qua:
-- File theme.json
-- Các hằng số giao diện trong config.py
+## License
 
-## Giấy phép
-
-Ứng dụng này được phát hành dưới giấy phép MIT.
+This project is licensed under the MIT License - see the LICENSE file for details.
