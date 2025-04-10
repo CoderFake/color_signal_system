@@ -115,7 +115,7 @@ def main():
             print("Starting LED Simulator...")
 
             active_scene = light_scenes[1]
-            simulator = LEDSimulator(active_scene)
+            simulator = LEDSimulator(scene=active_scene)
             
             if not args.simulator_only and osc_handler:
                 osc_handler.set_simulator(simulator)
