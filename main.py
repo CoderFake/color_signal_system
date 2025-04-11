@@ -2,10 +2,21 @@ import sys
 import time
 import os
 import argparse
+import logging
 from typing import Dict, List, Any
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("color_signal_system")
 
 from config import (
     DEFAULT_FPS, DEFAULT_LED_COUNT, DEFAULT_OSC_PORT, DEFAULT_OSC_IP,
@@ -20,15 +31,7 @@ from controllers.osc_handler import OSCHandler
 from ui.led_simulator import LEDSimulator
 
 def create_default_segments(effect: LightEffect, count: int = 3):
-    """
-    Create default light segments for an effect.
-    
-    Args:
-        effect: LightEffect instance to add segments to
-        count: Number of segments to create
-    """
     center_position = effect.led_count // 2 
-
     for i in range(1, count + 1):
         segment = LightSegment(
             segment_ID=i,
@@ -41,33 +44,18 @@ def create_default_segments(effect: LightEffect, count: int = 3):
             is_edge_reflect=DEFAULT_IS_EDGE_REFLECT,
             dimmer_time=DEFAULT_DIMMER_TIME
         )
-        
         segment.gradient = False
         segment.fade = False
         segment.gradient_colors = [0, -1, -1]
-
         effect.add_segment(i, segment)
 
-def create_default_effects(scene: LightScene, num_effects: int = 8):
-    """
-    Create default light effects for a scene.
-    
-    Args:
-        scene: LightScene instance to add effects to
-        num_effects: Number of effects to create
-    """
+def create_default_effects(scene: LightScene, num_effects: int = 3):
     for effect_id in range(1, num_effects + 1): 
         effect = LightEffect(effect_ID=effect_id, led_count=DEFAULT_LED_COUNT, fps=DEFAULT_FPS)
-        create_default_segments(effect, count=8)
+        create_default_segments(effect, count=3)
         scene.add_effect(effect_id, effect)
 
 def parse_arguments():
-    """
-    Parse command line arguments for the application.
-    
-    Returns:
-        Parsed arguments
-    """
     parser = argparse.ArgumentParser(description='LED Color Signal Generator')
     parser.add_argument('--fps', type=int, default=DEFAULT_FPS, help=f'Frames per second (default: {DEFAULT_FPS})')
     parser.add_argument('--led-count', type=int, default=DEFAULT_LED_COUNT, help=f'Number of LEDs (default: {DEFAULT_LED_COUNT})')
@@ -76,16 +64,15 @@ def parse_arguments():
     parser.add_argument('--no-gui', action='store_true', help='Run without GUI')
     parser.add_argument('--simulator-only', action='store_true', help='Run only the simulator without OSC')
     parser.add_argument('--config-file', type=str, help='Load configuration from a JSON file')
+    parser.add_argument('--scale-factor', type=float, default=1.2, help='Scale factor for UI elements (default: 1.2)')
+    parser.add_argument('--japanese-font', type=str, help='Path to Japanese font file')
     return parser.parse_args()
 
 def main():
-    """
-    Main function to initialize and run the Color Signal Generation System.
-    """
     args = parse_arguments()
     
-    print("Initializing Color Signal Generation System...")
-    print(f"FPS: {args.fps}, LED Count: {args.led_count}, OSC: {args.osc_ip}:{args.osc_port}")
+    logger.info("Initializing Color Signal Generation System...")
+    logger.info(f"FPS: {args.fps}, LED Count: {args.led_count}, OSC: {args.osc_ip}:{args.osc_port}")
     
     light_scenes = {}
     
@@ -93,10 +80,10 @@ def main():
         try:
             scene = LightScene.load_from_json(args.config_file)
             light_scenes[scene.scene_ID] = scene
-            print(f"Loaded configuration from {args.config_file}")
+            logger.info(f"Configuration loaded from {args.config_file}")
         except Exception as e:
-            print(f"Error loading configuration from {args.config_file}: {e}")
-            print("Creating default scene instead.")
+            logger.error(f"Error loading configuration from {args.config_file}: {e}")
+            logger.info("Creating default scene.")
             scene = LightScene(scene_ID=1)
             create_default_effects(scene)
             light_scenes[scene.scene_ID] = scene
@@ -105,6 +92,15 @@ def main():
         create_default_effects(scene)
         light_scenes[scene.scene_ID] = scene
     
+    font_dir = os.path.join(current_dir, 'assets', 'fonts')
+    os.makedirs(font_dir, exist_ok=True)
+    
+    japanese_font = args.japanese_font
+    if not japanese_font or not os.path.exists(japanese_font):
+        japanese_font = os.path.join(font_dir, 'NotoSansJP-Regular.ttf')
+        if not os.path.exists(japanese_font):
+            logger.warning(f"Japanese font not found. UI may not display Japanese characters properly.")
+    
     osc_handler = None
     if not args.simulator_only:
         osc_handler = OSCHandler(light_scenes, ip=args.osc_ip, port=args.osc_port)
@@ -112,18 +108,22 @@ def main():
     
     try:
         if not args.no_gui:
-            print("Starting LED Simulator...")
-
+            logger.info("Starting LED Simulator...")
             active_scene = light_scenes[1]
             simulator = LEDSimulator(scene=active_scene)
+            simulator.ui_state['scale_factor'] = args.scale_factor
+            
+            if os.path.exists(japanese_font):
+                simulator.japanese_font_path = japanese_font
+                logger.info("Japanese font loaded")
             
             if not args.simulator_only and osc_handler:
                 osc_handler.set_simulator(simulator)
             
             simulator.run()
         else:
-            print("Running in headless mode (no GUI)...")
-            print("Press Ctrl+C to exit")
+            logger.info("Running in headless mode (no GUI)...")
+            logger.info("Press Ctrl+C to exit")
             
             while True:
                 for scene in light_scenes.values():
@@ -131,15 +131,15 @@ def main():
                 time.sleep(1.0/args.fps)
                 
     except KeyboardInterrupt:
-        print("\nUser interrupted. Shutting down...")
+        logger.info("User interrupted. Shutting down...")
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         import traceback
         traceback.print_exc()
     finally:
         if not args.simulator_only and osc_handler:
             osc_handler.stop_server()
-        print("System shutdown complete.")
+        logger.info("System shutdown complete.")
 
 if __name__ == "__main__":
     main()

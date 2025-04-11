@@ -32,11 +32,17 @@ class LEDSimulator:
             scene: LightScene instance để hiển thị (sử dụng khi không có scene_manager)
         """
         pygame.init()
-        self.root = tk.Tk()
-        self.root.withdraw()  
+        pygame.font.init()
         
+        if hasattr(pygame, 'freetype'):
+            pygame.freetype.init()
+
+        self.root = tk.Tk()
+        self.root.withdraw()
         self.scene_manager = scene_manager
         self.scene = None
+        self.japanese_font_path = None
+        self.japanese_fonts = {}
         
         if scene_manager:
             scene_id = scene_manager.current_scene if scene_manager.current_scene is not None else min(scene_manager.scenes.keys()) if scene_manager.scenes else None
@@ -45,8 +51,8 @@ class LEDSimulator:
             self.scene = scene
             
         if not self.scene:
-            print("Lỗi: Không có scene nào được cung cấp. Thoát simulator.")
             sys.exit(1)
+
             
         self.active_scene_id = self.scene.scene_ID
         self.active_effect_id = self.scene.current_effect_ID if self.scene.current_effect_ID else min(self.scene.effects.keys()) if self.scene.effects else 1
@@ -60,7 +66,7 @@ class LEDSimulator:
         self.ui_dirty = True
         self.ui_rebuilding = False
         self.screen = pygame.display.set_mode((UI_WIDTH, UI_HEIGHT), pygame.RESIZABLE)
-        pygame.display.set_caption("LED Tape Light Simulator")
+        pygame.display.set_caption("LEDテープライトシミュレーター")
         
         self.ui_state = {
             'width': UI_WIDTH,
@@ -136,6 +142,30 @@ class LEDSimulator:
 
         self.notifications = []
 
+        self._load_fonts()
+    
+    def _load_fonts(self):
+        if hasattr(self, 'japanese_font_path') and self.japanese_font_path and os.path.exists(self.japanese_font_path):
+            font_sizes = [12, 14, 16, 18, 24, 30]
+            for size in font_sizes:
+                scaled_size = int(size * self.ui_state['scale_factor'])
+                self.japanese_fonts[size] = pygame.font.Font(self.japanese_font_path, scaled_size)
+        else:
+            available_fonts = pygame.font.get_fonts()
+            japanese_system_fonts = [f for f in available_fonts if f in ['meiryo', 'msgothic', 'yugothic', 'hiragino']]
+            
+            if japanese_system_fonts:
+                for size in [12, 14, 16, 18, 24, 30]:
+                    scaled_size = int(size * self.ui_state['scale_factor'])
+                    self.japanese_fonts[size] = pygame.font.SysFont(japanese_system_fonts[0], scaled_size)
+    
+    def _render_text(self, text, size=14, color=(255, 255, 255)):
+        if hasattr(self, 'japanese_fonts') and size in self.japanese_fonts:
+            return self.japanese_fonts[size].render(text, True, color)
+        else:
+            font = pygame.font.SysFont('Arial', int(size * self.ui_state['scale_factor']))
+            return font.render(text, True, color)
+        
     def _get_active_segment(self) -> Optional[LightSegment]:
         """
         Lấy segment đang được chọn.
@@ -378,7 +408,6 @@ class LEDSimulator:
         )
         
     def _build_top_panel_two_rows(self):
-        """Xây dựng panel phía trên với điều khiển trong hai hàng (cho cửa sổ hẹp)."""
         scale = self.ui_state['scale_factor']
         row1_y = int(10 * scale)
         row2_y = int(40 * scale)
@@ -445,23 +474,23 @@ class LEDSimulator:
 
         self.ui_elements['save_button'] = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(current_x, row2_y, button_width, button_height),
-            text='Lưu JSON',
+            text='JSONを保存',
             manager=self.manager,
-            tool_tip_text="Lưu cấu hình vào file JSON"
+            tool_tip_text="Save JSON"
         )
         current_x += button_width + button_spacing
 
         self.ui_elements['load_button'] = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(current_x, row2_y, button_width, button_height),
-            text='Tải JSON',
+            text='JSONを読込',
             manager=self.manager,
-            tool_tip_text="Tải cấu hình từ file JSON"
+            tool_tip_text="Load JSON"
         )
         current_x += button_width + button_spacing
 
         self.ui_elements['effect_label'] = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(current_x, row2_y, label_width, button_height),
-            text='Effect:',
+            text='エフェクト:',
             manager=self.manager
         )
         current_x += int(85 * scale)
@@ -480,7 +509,7 @@ class LEDSimulator:
 
         self.ui_elements['palette_label'] = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(current_x, row2_y, label_width, button_height),
-            text='Palette:',
+            text='パレット:',
             manager=self.manager
         )
         current_x += int(85 * scale)
@@ -535,193 +564,31 @@ class LEDSimulator:
             tool_tip_text="Hiện/Ẩn chỉ dẫn segment"
         )
 
-    def _build_top_panel_one_row(self):
-        """Xây dựng panel phía trên với điều khiển trong một hàng (cho cửa sổ rộng)."""
-        scale = self.ui_state['scale_factor']
-        row_y = int(10 * scale)
-        button_height = int(25 * scale)
-        slider_height = int(20 * scale)
-        button_spacing = int(5 * scale)
-        
-
-        current_x = int(10 * scale)
-        
-
-        self.ui_elements['play_button'] = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(current_x, row_y, int(60 * scale), button_height),
-            text='Dừng' if self.is_playing else 'Phát',
-            manager=self.manager,
-            tool_tip_text="Phát/Dừng Animation"
-        )
-        current_x += int(65 * scale)
-        
-
-        self.ui_elements['fps_label'] = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(current_x, row_y, int(40 * scale), button_height),
-            text='FPS:',
-            manager=self.manager
-        )
-        current_x += int(45 * scale)
-        
-        self.ui_elements['fps_slider'] = pygame_gui.elements.UIHorizontalSlider(
-            relative_rect=pygame.Rect(current_x, row_y + int(2 * scale), int(100 * scale), slider_height),
-            start_value=self.fps,
-            value_range=(1, 120),
-            manager=self.manager
-        )
-        current_x += int(105 * scale)
-        
-        self.ui_elements['fps_value'] = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(current_x, row_y, int(30 * scale), button_height),
-            text=str(self.fps),
-            manager=self.manager
-        )
-        current_x += int(40 * scale)
-        
-
-        self.ui_elements['scene_label'] = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(current_x, row_y, int(60 * scale), button_height),
-            text='Scene:',
-            manager=self.manager
-        )
-        current_x += int(65 * scale)
-        
-        scenes = [self.scene.scene_ID]
-        if self.scene_manager:
-            scenes = sorted(self.scene_manager.scenes.keys())
-            
-        self.ui_elements['scene_dropdown'] = pygame_gui.elements.UIDropDownMenu(
-            options_list=[str(scene_id) for scene_id in scenes],
-            starting_option=str(self.active_scene_id),
-            relative_rect=pygame.Rect(current_x, row_y, int(60 * scale), button_height),
-            manager=self.manager
-        )
-        current_x += int(70 * scale)
-        
-
-        self.ui_elements['effect_label'] = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(current_x, row_y, int(60 * scale), button_height),
-            text='Effect:',
-            manager=self.manager
-        )
-        current_x += int(65 * scale)
-        
-        effects = []
-        if self.active_effect_id in self.scene.effects:
-            effects = sorted(self.scene.effects.keys())
-            
-        self.ui_elements['effect_dropdown'] = pygame_gui.elements.UIDropDownMenu(
-            options_list=[str(effect_id) for effect_id in effects],
-            starting_option=str(self.active_effect_id),
-            relative_rect=pygame.Rect(current_x, row_y, int(60 * scale), button_height),
-            manager=self.manager
-        )
-        current_x += int(70 * scale)
-        
-
-        self.ui_elements['palette_label'] = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(current_x, row_y, int(60 * scale), button_height),
-            text='Palette:',
-            manager=self.manager
-        )
-        current_x += int(65 * scale)
-        
-        palettes = sorted(self.scene.palettes.keys())
-        self.ui_elements['palette_dropdown'] = pygame_gui.elements.UIDropDownMenu(
-            options_list=palettes,
-            starting_option=self.scene.current_palette,
-            relative_rect=pygame.Rect(current_x, row_y, int(60 * scale), button_height),
-            manager=self.manager
-        )
-        current_x += int(70 * scale)
-        
-
-        button_width = int(80 * scale)
-        
-        self.ui_elements['save_button'] = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(current_x, row_y, button_width, button_height),
-            text='Lưu JSON',
-            manager=self.manager,
-            tool_tip_text="Lưu cấu hình vào file JSON"
-        )
-        current_x += button_width + button_spacing
-        
-        self.ui_elements['load_button'] = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(current_x, row_y, button_width, button_height),
-            text='Tải JSON',
-            manager=self.manager,
-            tool_tip_text="Tải cấu hình từ file JSON"
-        )
-        current_x += button_width + button_spacing
-        
-
-        remaining_width = self.ui_state['width'] - current_x - int(20 * scale)
-        if remaining_width >= int(280 * scale):
-            self.ui_elements['zoom_in'] = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(current_x, row_y, int(30 * scale), button_height),
-                text='+',
-                manager=self.manager,
-                tool_tip_text="Phóng to"
-            )
-            current_x += int(35 * scale)
-            
-            self.ui_elements['zoom_out'] = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(current_x, row_y, int(30 * scale), button_height),
-                text='-',
-                manager=self.manager,
-                tool_tip_text="Thu nhỏ"
-            )
-            current_x += int(35 * scale)
-            
-            self.ui_elements['zoom_reset'] = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(current_x, row_y, int(60 * scale), button_height),
-                text='Reset',
-                manager=self.manager,
-                tool_tip_text="Đặt lại Zoom và Pan"
-            )
-            current_x += int(65 * scale)
-            
-            self.ui_elements['center_view'] = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(current_x, row_y, int(60 * scale), button_height),
-                text='Giữa',
-                manager=self.manager,
-                tool_tip_text="Căn giữa màn hình"
-            )
-            current_x += int(65 * scale)
-            
-
-            self.ui_elements['show_indicators'] = pygame_gui.elements.UIButton(
-                relative_rect=pygame.Rect(current_x, row_y, int(100 * scale), button_height),
-                text='Chỉ dẫn: ON' if self.led_state['show_segment_indicators'] else 'Chỉ dẫn: OFF',
-                manager=self.manager,
-                tool_tip_text="Hiện/Ẩn chỉ dẫn segment"
-            )
-
     def _build_control_panel(self):
-        """Xây dựng panel điều khiển bên phải."""
         if not self.ui_state['control_panel_expanded']:
             return
 
         scale = self.ui_state['scale_factor']
         panel_rect = self.rects['control']
         
-        # Tạo container cho panel điều khiển
+
         control_panel = pygame_gui.elements.UIPanel(
             relative_rect=panel_rect,
             manager=self.manager
         )
         
         current_y = int(10 * scale)
-        label_height = int(20 * scale)
+
+        label_height = int(25 * scale)  
+        label_width = int(100 * scale)  
         
-        # Thêm các điều khiển segment
         segments = []
         if self.active_effect_id in self.scene.effects:
             effect = self.scene.effects[self.active_effect_id]
             segments = sorted(effect.segments.keys())
         
         pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(int(10 * scale), current_y, int(80 * scale), label_height),
+            relative_rect=pygame.Rect(int(10 * scale), current_y, label_width, label_height),
             text='Segment:',
             manager=self.manager,
             container=control_panel
@@ -730,76 +597,76 @@ class LEDSimulator:
         self.ui_elements['segment_dropdown'] = pygame_gui.elements.UIDropDownMenu(
             options_list=[str(seg_id) for seg_id in segments],
             starting_option=str(self.active_segment_id),
-            relative_rect=pygame.Rect(int(100 * scale), current_y, int(60 * scale), label_height),
+            relative_rect=pygame.Rect(int(120 * scale), current_y, int(60 * scale), label_height),
             manager=self.manager,
             container=control_panel
         )
         
-        current_y += int(30 * scale)
+        current_y += int(35 * scale)
         
-        # Thêm nút thêm/xóa segment
+
         button_width = int(120 * scale)
         self.ui_elements['add_segment'] = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(int(10 * scale), current_y, button_width, label_height),
-            text='Thêm Segment',
+            text='セグメント追加',
             manager=self.manager,
             container=control_panel
         )
         
-        current_y += int(30 * scale)
+        current_y += int(35 * scale)
         
         self.ui_elements['remove_segment'] = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect(int(10 * scale), current_y, button_width, label_height),
-            text='Xóa Segment',
+            text='セグメント削除',
             manager=self.manager,
             container=control_panel
         )
         
-        current_y += int(40 * scale)
+        current_y += int(45 * scale)
         
-        # Thêm các điều khiển cho segment hiện tại
+
         segment = self._get_active_segment()
         if segment:
-            # Điều khiển vị trí
+
             pygame_gui.elements.UILabel(
-                relative_rect=pygame.Rect(int(10 * scale), current_y, int(80 * scale), label_height),
-                text='Vị trí:',
+                relative_rect=pygame.Rect(int(10 * scale), current_y, label_width, label_height),
+                text='位置:',
                 manager=self.manager,
                 container=control_panel
             )
             
             self.ui_elements['position_slider'] = pygame_gui.elements.UIHorizontalSlider(
-                relative_rect=pygame.Rect(int(100 * scale), current_y, int(150 * scale), label_height),
+                relative_rect=pygame.Rect(int(120 * scale), current_y, int(150 * scale), label_height),
                 start_value=segment.current_position,
                 value_range=(0, DEFAULT_LED_COUNT),
                 manager=self.manager,
                 container=control_panel
             )
             
-            current_y += int(30 * scale)
+            current_y += int(35 * scale)
             
-            # Điều khiển tốc độ
+
             pygame_gui.elements.UILabel(
-                relative_rect=pygame.Rect(int(10 * scale), current_y, int(80 * scale), label_height),
-                text='Tốc độ:',
+                relative_rect=pygame.Rect(int(10 * scale), current_y, label_width, label_height),
+                text='速度:',
                 manager=self.manager,
                 container=control_panel
             )
             
             self.ui_elements['speed_slider'] = pygame_gui.elements.UIHorizontalSlider(
-                relative_rect=pygame.Rect(int(100 * scale), current_y, int(150 * scale), label_height),
+                relative_rect=pygame.Rect(int(120 * scale), current_y, int(150 * scale), label_height),
                 start_value=segment.move_speed,
                 value_range=(-50, 50),
                 manager=self.manager,
                 container=control_panel
             )
             
-            current_y += int(30 * scale)
+            current_y += int(35 * scale)
             
-            # Điều khiển phạm vi di chuyển
+
             pygame_gui.elements.UILabel(
-                relative_rect=pygame.Rect(int(10 * scale), current_y, int(80 * scale), label_height),
-                text='Phạm vi:',
+                relative_rect=pygame.Rect(int(10 * scale), current_y, label_width, label_height),
+                text='範囲:',
                 manager=self.manager,
                 container=control_panel
             )
@@ -808,7 +675,7 @@ class LEDSimulator:
             range_max = segment.move_range[1] if len(segment.move_range) > 1 else DEFAULT_LED_COUNT
             
             self.ui_elements['range_min'] = pygame_gui.elements.UIHorizontalSlider(
-                relative_rect=pygame.Rect(int(100 * scale), current_y, int(70 * scale), label_height),
+                relative_rect=pygame.Rect(int(120 * scale), current_y, int(70 * scale), label_height),
                 start_value=range_min,
                 value_range=(0, DEFAULT_LED_COUNT),
                 manager=self.manager,
@@ -816,48 +683,48 @@ class LEDSimulator:
             )
             
             self.ui_elements['range_max'] = pygame_gui.elements.UIHorizontalSlider(
-                relative_rect=pygame.Rect(int(180 * scale), current_y, int(70 * scale), label_height),
+                relative_rect=pygame.Rect(int(200 * scale), current_y, int(70 * scale), label_height),
                 start_value=range_max,
                 value_range=(0, DEFAULT_LED_COUNT),
                 manager=self.manager,
                 container=control_panel
             )
             
-            current_y += int(30 * scale)
+            current_y += int(35 * scale)
             
-            # Các nút toggle
+
             button_width = int(80 * scale)
             self.ui_elements['reflect_toggle'] = pygame_gui.elements.UIButton(
                 relative_rect=pygame.Rect(int(10 * scale), current_y, button_width, label_height),
-                text='ON' if segment.is_edge_reflect else 'OFF',
+                text='オン' if segment.is_edge_reflect else 'オフ',
                 manager=self.manager,
                 container=control_panel
             )
             
             pygame_gui.elements.UILabel(
-                relative_rect=pygame.Rect(int(100 * scale), current_y, int(150 * scale), label_height),
-                text='Phản xạ cạnh',
+                relative_rect=pygame.Rect(int(100 * scale), current_y, int(170 * scale), label_height),
+                text='エッジ反射',
                 manager=self.manager,
                 container=control_panel
             )
             
-            current_y += int(30 * scale)
+            current_y += int(35 * scale)
             
             self.ui_elements['gradient_toggle'] = pygame_gui.elements.UIButton(
                 relative_rect=pygame.Rect(int(10 * scale), current_y, button_width, label_height),
-                text='ON' if hasattr(segment, 'gradient') and segment.gradient else 'OFF',
+                text='オン' if hasattr(segment, 'gradient') and segment.gradient else 'オフ',
                 manager=self.manager,
                 container=control_panel
             )
             
             pygame_gui.elements.UILabel(
-                relative_rect=pygame.Rect(int(100 * scale), current_y, int(150 * scale), label_height),
-                text='Gradient',
+                relative_rect=pygame.Rect(int(100 * scale), current_y, int(170 * scale), label_height),
+                text='グラデーション',
                 manager=self.manager,
                 container=control_panel
             )
             
-            current_y += int(30 * scale)
+            current_y += int(35 * scale)
             
             self.ui_elements['fade_toggle'] = pygame_gui.elements.UIButton(
                 relative_rect=pygame.Rect(int(10 * scale), current_y, button_width, label_height),
@@ -867,12 +734,175 @@ class LEDSimulator:
             )
             
             pygame_gui.elements.UILabel(
-                relative_rect=pygame.Rect(int(100 * scale), current_y, int(150 * scale), label_height),
+                relative_rect=pygame.Rect(int(100 * scale), current_y, int(170 * scale), label_height),
                 text='Fade',
                 manager=self.manager,
                 container=control_panel
             )
-    
+
+    def _build_top_panel_one_row(self):
+        scale = self.ui_state['scale_factor']
+        row_y = int(10 * scale)
+
+        button_height = int(30 * scale)  
+        slider_height = int(25 * scale)  
+        button_spacing = int(8 * scale) 
+        
+        label_width = int(80 * scale) 
+        dropdown_width = int(80 * scale)
+
+        current_x = int(10 * scale)
+        
+
+        self.ui_elements['play_button'] = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(current_x, row_y, int(70 * scale), button_height),
+            text='Dừng' if self.is_playing else 'Phát',
+            manager=self.manager,
+            tool_tip_text="再生/停止"
+        )
+        current_x += int(80 * scale)
+        
+
+        self.ui_elements['fps_label'] = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(current_x, row_y, int(50 * scale), button_height),
+            text='FPS:',
+            manager=self.manager
+        )
+        current_x += int(55 * scale)
+        
+        self.ui_elements['fps_slider'] = pygame_gui.elements.UIHorizontalSlider(
+            relative_rect=pygame.Rect(current_x, row_y + int(2 * scale), int(100 * scale), slider_height),
+            start_value=self.fps,
+            value_range=(1, 120),
+            manager=self.manager
+        )
+        current_x += int(110 * scale)
+        
+        self.ui_elements['fps_value'] = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(current_x, row_y, int(40 * scale), button_height),
+            text=str(self.fps),
+            manager=self.manager
+        )
+        current_x += int(50 * scale)
+
+
+        self.ui_elements['scene_label'] = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(current_x, row_y, label_width, button_height),
+            text='シーン:',
+            manager=self.manager
+        )
+        current_x += int(85 * scale)
+        
+        scenes = [self.scene.scene_ID]
+        if self.scene_manager:
+            scenes = sorted(self.scene_manager.scenes.keys())
+            
+        self.ui_elements['scene_dropdown'] = pygame_gui.elements.UIDropDownMenu(
+            options_list=[str(scene_id) for scene_id in scenes],
+            starting_option=str(self.active_scene_id),
+            relative_rect=pygame.Rect(current_x, row_y, dropdown_width, button_height),
+            manager=self.manager
+        )
+        current_x += int(90 * scale)
+
+
+        self.ui_elements['effect_label'] = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(current_x, row_y, label_width, button_height),
+            text='エフェクト:',
+            manager=self.manager
+        )
+        current_x += int(85 * scale)
+        
+        effects = []
+        if self.active_effect_id in self.scene.effects:
+            effects = sorted(self.scene.effects.keys())
+            
+        self.ui_elements['effect_dropdown'] = pygame_gui.elements.UIDropDownMenu(
+            options_list=[str(effect_id) for effect_id in effects],
+            starting_option=str(self.active_effect_id),
+            relative_rect=pygame.Rect(current_x, row_y, dropdown_width, button_height),
+            manager=self.manager
+        )
+        current_x += int(90 * scale)
+
+
+        self.ui_elements['palette_label'] = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(current_x, row_y, label_width, button_height),
+            text='パレット:',
+            manager=self.manager
+        )
+        current_x += int(85 * scale)
+        
+        palettes = sorted(self.scene.palettes.keys())
+        self.ui_elements['palette_dropdown'] = pygame_gui.elements.UIDropDownMenu(
+            options_list=palettes,
+            starting_option=self.scene.current_palette,
+            relative_rect=pygame.Rect(current_x, row_y, dropdown_width, button_height),
+            manager=self.manager
+        )
+        current_x += int(90 * scale)
+
+
+        button_width = int(90 * scale)
+        
+        self.ui_elements['save_button'] = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(current_x, row_y, button_width, button_height),
+            text='JSONを保存',
+            manager=self.manager,
+            tool_tip_text="Save JSON"
+        )
+        current_x += button_width + button_spacing
+        
+        self.ui_elements['load_button'] = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(current_x, row_y, button_width, button_height),
+            text='JSONを読込',
+            manager=self.manager,
+            tool_tip_text="Load JSON"
+        )
+        current_x += button_width + button_spacing
+
+
+        remaining_width = self.ui_state['width'] - current_x - int(20 * scale)
+        if remaining_width >= int(280 * scale):
+            self.ui_elements['zoom_in'] = pygame_gui.elements.UIButton(
+                relative_rect=pygame.Rect(current_x, row_y, int(35 * scale), button_height),
+                text='+',
+                manager=self.manager,
+                tool_tip_text="拡大"
+            )
+            current_x += int(40 * scale)
+            
+            self.ui_elements['zoom_out'] = pygame_gui.elements.UIButton(
+                relative_rect=pygame.Rect(current_x, row_y, int(35 * scale), button_height),
+                text='-',
+                manager=self.manager,
+                tool_tip_text="縮小"
+            )
+            current_x += int(40 * scale)
+            
+            self.ui_elements['zoom_reset'] = pygame_gui.elements.UIButton(
+                relative_rect=pygame.Rect(current_x, row_y, int(70 * scale), button_height),
+                text='リセット',
+                manager=self.manager,
+                tool_tip_text="ズームとパンをリセット"
+            )
+            current_x += int(75 * scale)
+            
+            self.ui_elements['center_view'] = pygame_gui.elements.UIButton(
+                relative_rect=pygame.Rect(current_x, row_y, int(70 * scale), button_height),
+                text='中心',
+                manager=self.manager,
+                tool_tip_text="画面の中央に配置"
+            )
+            current_x += int(75 * scale)
+            
+            self.ui_elements['show_indicators'] = pygame_gui.elements.UIButton(
+                relative_rect=pygame.Rect(current_x, row_y, int(110 * scale), button_height),
+                text='表示: オン' if self.led_state['show_segment_indicators'] else '表示: オフ',
+                manager=self.manager,
+                tool_tip_text="セグメント表示の切替"
+            )
+
     def _center_view(self):
         """Căn giữa view hiệu ứng LED."""
 
@@ -939,7 +969,7 @@ class LEDSimulator:
 
         elif event.ui_element == self.ui_elements.get('play_button'):
             self.is_playing = not self.is_playing
-            event.ui_element.set_text('Dừng' if self.is_playing else 'Phát')
+            event.ui_element.set_text('停止' if self.is_playing else '再生')
         
 
         elif event.ui_element == self.ui_elements.get('zoom_in'):
@@ -984,21 +1014,21 @@ class LEDSimulator:
                     segment.gradient = True
                     
                 if segment.gradient and (not hasattr(segment, 'gradient_colors') or segment.gradient_colors[0] == 0):
-                    segment.gradient_colors = [1, 0, 1]  # Bật gradient với màu mặc định
+                    segment.gradient_colors = [1, 0, 1] 
                 
-                event.ui_element.set_text('ON' if segment.gradient else 'OFF')
+                event.ui_element.set_text('オン' if segment.gradient else 'オフ')
         
 
         elif event.ui_element == self.ui_elements.get('reflect_toggle'):
             segment = self._get_active_segment()
             if segment:
                 segment.is_edge_reflect = not segment.is_edge_reflect
-                event.ui_element.set_text('ON' if segment.is_edge_reflect else 'OFF')
+                event.ui_element.set_text('オン' if segment.is_edge_reflect else 'オフ')
         
 
         elif event.ui_element == self.ui_elements.get('show_fade_viz'):
             self.fade_visualizer['show'] = not self.fade_visualizer['show']
-            event.ui_element.set_text('Ẩn hình ảnh fade' if self.fade_visualizer['show'] else 'Hiển thị hình ảnh fade')
+            event.ui_element.set_text('フェード画像を非表示' if self.fade_visualizer['show'] else 'フェード画像を表示')
         
 
         elif event.ui_element == self.ui_elements.get('add_segment'):
@@ -1030,7 +1060,7 @@ class LEDSimulator:
                 self.active_segment_id = new_id
                 self.ui_dirty = True
                 
-                self._add_notification(f"Đã thêm Segment {new_id}")
+                self._add_notification(f"セグメントが追加されました {new_id}")
         
         elif event.ui_element == self.ui_elements.get('remove_segment'):
             if self.active_effect_id in self.scene.effects:
@@ -1046,7 +1076,7 @@ class LEDSimulator:
                         self.active_segment_id = None
                     
                     self.ui_dirty = True
-                    self._add_notification(f"Đã xóa Segment {self.active_segment_id}")
+                    self._add_notification(f"セグメントが削除されました {self.active_segment_id}")
         
 
         elif event.ui_element == self.ui_elements.get('save_button'):
@@ -1201,15 +1231,14 @@ class LEDSimulator:
                 else:
                     self.scene.save_to_json(filename)
                 
-                self._add_notification(f"Đã lưu cấu hình vào {filename}")
+                self._add_notification(f"設定を保存しました {filename}")
         except Exception as e:
-            self._add_notification(f"Lỗi khi lưu: {str(e)}")
+            self._add_notification(f"保存エラー： {str(e)}")
     
     def _load_json_config(self):
-        """Tải cấu hình từ file JSON."""
         try:
             filename = filedialog.askopenfilename(
-                title="Tải cấu hình",
+                title="ロード構成",
                 defaultextension=".json",
                 filetypes=[("JSON Files", "*.json"), ("All Files", "*.*")]
             )
@@ -1242,9 +1271,9 @@ class LEDSimulator:
                         self.active_segment_id = min(effect.segments.keys())
                 
                 self.ui_dirty = True
-                self._add_notification(f"Đã tải cấu hình từ {filename}")
+                self._add_notification(f"設定を読み込みました {filename}")
         except Exception as e:
-            self._add_notification(f"Lỗi khi tải: {str(e)}")
+            self._add_notification(f"読込エラー： {str(e)}")
     
     def _add_notification(self, message, duration=3.0):
         """
@@ -1267,176 +1296,35 @@ class LEDSimulator:
                              if current_time - n['time'] < n['duration']]
     
     def _render_notifications(self):
-        """Hiển thị các thông báo trên màn hình."""
         if not self.notifications:
             return
-            
-        font = pygame.font.SysFont('Arial', int(14 * self.ui_state['scale_factor']))
+        
         notification_height = int(30 * self.ui_state['scale_factor'])
         padding = int(10 * self.ui_state['scale_factor'])
         
         for i, notification in enumerate(self.notifications):
-
             elapsed = time.time() - notification['time']
             remaining = notification['duration'] - elapsed
-            alpha = min(255, int(255 * remaining / min(1.0, notification['duration'] / 3)))
+            alpha = min(255, max(0, int(255 * remaining / min(1.0, notification['duration'] / 3))))
             
-
-            text_surface = font.render(notification['message'], True, (255, 255, 255))
+            text_surface = self._render_text(notification['message'], 14, (255, 255, 255))
             text_width = text_surface.get_width() + padding * 2
             
-
             bg_surface = pygame.Surface((text_width, notification_height), pygame.SRCALPHA)
             bg_surface.fill((40, 40, 40, alpha))
             
-
             bg_surface.blit(text_surface, (padding, (notification_height - text_surface.get_height()) // 2))
             
-
             x = self.ui_state['width'] - text_width - padding
             y = self.ui_state['height'] - notification_height - padding - i * (notification_height + padding)
             
             self.screen.blit(bg_surface, (x, y))
-    
-    def _draw_led_visualizer(self):
-        """Vẽ LED visualizer."""
-        led_size = self.led_state['size']
-        spacing = self.led_state['spacing']
-        total_led_size = led_size + spacing
-        
-        display_rect = self.rects['display']
-        
 
-        scaled_size = int(led_size * self.led_state['zoom'])
-        scaled_total = int(total_led_size * self.led_state['zoom'])
-        center_offset = display_rect.width // 2 - (DEFAULT_LED_COUNT // 2) * scaled_total
-        
-
-        led_colors = []
-        if self.is_playing:
-            self.scene.update()
-        led_colors = self.scene.get_led_output()
-        
-
-        pygame.draw.rect(self.screen, (20, 20, 20), display_rect)
-        
-
-        if scaled_size > 4:
-            tape_height = min(scaled_size // 3, 10)
-            tape_y = display_rect.y + display_rect.height // 2
-            pygame.draw.rect(self.screen, (50, 50, 50), 
-                            (display_rect.x, tape_y - tape_height // 2, 
-                             display_rect.width, tape_height))
-        
-
-        for i in range(DEFAULT_LED_COUNT):
-            x = display_rect.x + center_offset + int((i - self.led_state['pan']) * scaled_total)
-            
-
-            if x + scaled_size < display_rect.x or x > display_rect.x + display_rect.width:
-                continue
-            
-
-            if i < len(led_colors):
-                color = led_colors[i]
-            else:
-                color = [0, 0, 0]
-            
-
-            y = display_rect.y + display_rect.height // 2 - scaled_size // 2
-            pygame.draw.rect(self.screen, color, (x, y, scaled_size, scaled_size))
-            
-
-            if scaled_size > 6:
-                pygame.draw.rect(self.screen, (100, 100, 100), 
-                                (x, y, scaled_size, scaled_size), 1)
-        
-
-        if self.led_state['show_segment_indicators']:
-            self._draw_segment_indicators(display_rect, center_offset, scaled_total)
-        
-
-        if self.fade_visualizer['show']:
-            self._draw_fade_visualization(display_rect)
-    
-    def _draw_segment_indicators(self, display_rect, center_offset, scaled_total):
-        """
-        Vẽ chỉ dẫn vị trí các segment.
-        
-        Args:
-            display_rect: Rect của khu vực hiển thị
-            center_offset: Độ lệch trung tâm
-            scaled_total: Kích thước tổng LED đã được scale
-        """
-        segment_colors = [
-            (255, 100, 100),  # Đỏ
-            (100, 255, 100),  # Xanh lá
-            (100, 100, 255),  # Xanh dương
-            (255, 255, 100),  # Vàng
-            (255, 100, 255),  # Hồng
-            (100, 255, 255),  # Cyan
-            (255, 200, 100),  # Cam
-            (200, 100, 255)   # Tím
-        ]
-        
-        for effect_idx, effect in enumerate(self.scene.effects.values()):
-            for segment_idx, segment in enumerate(effect.segments.values()):
-
-                color_idx = (effect_idx * 8 + segment_idx) % len(segment_colors)
-                indicator_color = segment_colors[color_idx]
-                
-
-                indicator_color = (*indicator_color, self.led_state['segment_indicator_opacity'])
-                
-
-                total_length = sum(segment.length) if hasattr(segment, 'length') else 0
-                segment_start = segment.current_position - total_length // 2
-                segment_end = segment.current_position + total_length // 2
-                
-                start_x = display_rect.x + center_offset + int((segment_start - self.led_state['pan']) * scaled_total)
-                end_x = display_rect.x + center_offset + int((segment_end - self.led_state['pan']) * scaled_total)
-                
-
-                if end_x < display_rect.x or start_x > display_rect.x + display_rect.width:
-                    continue
-                
-
-                indicator_height = int(10 * self.ui_state['scale_factor'])
-                y = display_rect.y + display_rect.height // 2 - scaled_total // 2 - indicator_height - int(5 * self.ui_state['scale_factor'])
-                
-
-                indicator_surface = pygame.Surface((end_x - start_x, indicator_height), pygame.SRCALPHA)
-                indicator_surface.fill(indicator_color)
-                
-
-                if (effect.effect_ID == self.active_effect_id and 
-                    segment.segment_ID == self.active_segment_id):
-                    pygame.draw.rect(indicator_surface, (255, 255, 255, 200), 
-                                    (0, 0, end_x - start_x, indicator_height), 2)
-                    
-
-                    font = pygame.font.SysFont('Arial', int(10 * self.ui_state['scale_factor']))
-                    id_text = f"{effect.effect_ID}:{segment.segment_ID}"
-                    text_surface = font.render(id_text, True, (255, 255, 255))
-                    
-
-                    text_y = y - text_surface.get_height() - int(2 * self.ui_state['scale_factor'])
-                    self.screen.blit(text_surface, (start_x, text_y))
-                
-                self.screen.blit(indicator_surface, (start_x, y))
-    
-    def _draw_fade_visualization(self, display_rect):
-        """
-        Vẽ trực quan hóa fade cycle.
-        
-        Args:
-            display_rect: Rect của khu vực hiển thị
-        """
+    def _draw_led_visualizer(self, display_rect):
         segment = self._get_active_segment()
         if not segment or not hasattr(segment, 'dimmer_time') or len(segment.dimmer_time) < 5:
             return
             
-
         fade_in_start = segment.dimmer_time[0]
         fade_in_end = segment.dimmer_time[1]
         fade_out_start = segment.dimmer_time[2]
@@ -1446,17 +1334,14 @@ class LEDSimulator:
         if cycle_time <= 0:
             return
             
-
         width = int(min(400, display_rect.width - 40) * self.ui_state['scale_factor'])
         height = int(40 * self.ui_state['scale_factor'])
         x = display_rect.x + (display_rect.width - width) // 2
         y = display_rect.y + int(20 * self.ui_state['scale_factor'])
         
-
         fade_surface = pygame.Surface((width, height), pygame.SRCALPHA)
         fade_surface.fill((0, 0, 0, 180))
         
-
         def time_to_pos(t):
             return int(t / cycle_time * width)
         
@@ -1465,47 +1350,36 @@ class LEDSimulator:
         out_start_pos = time_to_pos(fade_out_start)
         out_end_pos = time_to_pos(fade_out_end)
         
-
         pygame.draw.rect(fade_surface, (50, 50, 50, 200), (0, 0, width, height), 1)
         
-
         pygame.draw.rect(fade_surface, (100, 255, 100, 100), 
-                         (in_start_pos, 0, in_end_pos - in_start_pos, height))
+                        (in_start_pos, 0, in_end_pos - in_start_pos, height))
         
-
         pygame.draw.rect(fade_surface, (255, 255, 100, 100), 
-                         (in_end_pos, 0, out_start_pos - in_end_pos, height))
+                        (in_end_pos, 0, out_start_pos - in_end_pos, height))
         
-
         pygame.draw.rect(fade_surface, (255, 100, 100, 100), 
-                         (out_start_pos, 0, out_end_pos - out_start_pos, height))
+                        (out_start_pos, 0, out_end_pos - out_start_pos, height))
         
-
         current_time = int((segment.time * 1000) % cycle_time)
         current_pos = time_to_pos(current_time)
         pygame.draw.line(fade_surface, (255, 255, 255, 200), 
-                         (current_pos, 0), (current_pos, height), 2)
-        
-
-        font = pygame.font.SysFont('Arial', int(10 * self.ui_state['scale_factor']))
+                        (current_pos, 0), (current_pos, height), 2)
         
         for i, t in enumerate([fade_in_start, fade_in_end, fade_out_start, fade_out_end]):
             pos = time_to_pos(t)
             label = ['In Start', 'In End', 'Out Start', 'Out End'][i]
-            text_surface = font.render(f"{label}: {t}ms", True, (255, 255, 255))
+            text_surface = self._render_text(f"{label}: {t}ms", 10, (255, 255, 255))
             y_offset = i % 2 * int(12 * self.ui_state['scale_factor'])
             fade_surface.blit(text_surface, (pos - text_surface.get_width() // 2, y_offset))
         
-
-        text_current = font.render(f"Time: {current_time}ms", True, (255, 255, 255))
+        text_current = self._render_text(f"Time: {current_time}ms", 10, (255, 255, 255))
         fade_surface.blit(text_current, (current_pos + 5, height - text_current.get_height()))
         
-
         brightness = segment.apply_dimming() if hasattr(segment, 'apply_dimming') else 1.0
-        brightness_text = font.render(f"Brightness: {brightness:.2f}", True, (255, 255, 255))
+        brightness_text = self._render_text(f"Brightness: {brightness:.2f}", 10, (255, 255, 255))
         fade_surface.blit(brightness_text, (5, height - brightness_text.get_height()))
         
-
         self.screen.blit(fade_surface, (x, y))
     
     def _draw_color_palette(self):
@@ -1518,26 +1392,17 @@ class LEDSimulator:
             pygame.draw.rect(self.screen, (200, 200, 200), rect, 1)
     
     def _draw_status_bar(self):
-        """Vẽ thanh trạng thái ở dưới cùng."""
         status_rect = self.rects['status_bar']
         pygame.draw.rect(self.screen, (30, 30, 30), status_rect)
         
-
         segment = self._get_active_segment()
         
         if segment:
-            font = pygame.font.SysFont('Arial', int(12 * self.ui_state['scale_factor']))
-            
-
             status_text = f"Scene: {self.active_scene_id} | Effect: {self.active_effect_id} | Segment: {self.active_segment_id}"
-            
-
             status_text += f" | Pos: {int(segment.current_position)} | Speed: {segment.move_speed:.1f}"
-            
-
             status_text += f" | FPS: {self.fps}"
             
-            text_surface = font.render(status_text, True, (200, 200, 200))
+            text_surface = self._render_text(status_text, 12, (200, 200, 200))
             self.screen.blit(text_surface, (status_rect.x + 10, status_rect.y + (status_rect.height - text_surface.get_height()) // 2))
     
     def _handle_event(self, event):
@@ -1729,7 +1594,6 @@ class LEDSimulator:
             self.ui_dirty = True
     
     def run(self):
-        """Chạy vòng lặp chính của simulator."""
         running = True
         
         while running:
